@@ -1,0 +1,279 @@
+
+R version 3.1.0 (2014-04-10) -- "Spring Dance"
+Copyright (C) 2014 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin13.1.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/BRCA/_data2")
+> 
+> inputs = "expression_vs_methylation.txt"
+> inputs = c(inputs, "expression_vs_methylation_pam50.txt")
+> inputs = c(inputs, "expression_vs_methylation_absolute_purity.txt")
+> inputs = c(inputs, "expression_vs_methylation_ab_purity_pam50.txt")
+> 
+> inputs
+[1] "expression_vs_methylation.txt"                
+[2] "expression_vs_methylation_pam50.txt"          
+[3] "expression_vs_methylation_absolute_purity.txt"
+[4] "expression_vs_methylation_ab_purity_pam50.txt"
+> 
+> outputs = gsub(".txt", ".png", inputs, fixed=TRUE)
+> 
+> outputs
+[1] "expression_vs_methylation.png"                
+[2] "expression_vs_methylation_pam50.png"          
+[3] "expression_vs_methylation_absolute_purity.png"
+[4] "expression_vs_methylation_ab_purity_pam50.png"
+> 
+> # --------------------------------------------------------------
+> # read in location annotation
+> # --------------------------------------------------------------
+> 
+> infoE = read.table("expression_info.txt", sep="\t", header=TRUE,
++ as.is=TRUE)
+> dim(infoE)
+[1] 15816     8
+> infoE[1:2,]
+     gene geneSymbol geneID   chr    start      end strand ensembl
+1 ?|10357          ?  10357 chr20 56063450 56064083      -    <NA>
+2 ?|10431          ?  10431 chr10 51592090 51623336      -    <NA>
+> 
+> table(infoE$chr, useNA="ifany")
+
+ chr1 chr10 chr11 chr12 chr13 chr14 chr15 chr16 chr17 chr18 chr19  chr2 chr20 
+ 1651   617   902   839   264   501   500   701   945   228  1135  1030   423 
+chr21 chr22  chr3  chr4  chr5  chr6  chr7  chr8  chr9  chrX  chrY 
+  161   395   888   586   742   817   764   534   635   557     1 
+> 
+> infoM = read.table("methylation_info.txt", sep="\t", header=TRUE,
++ as.is=TRUE)
+> dim(infoM)
+[1] 394309      4
+> infoM[1:2,]
+  Composite.Element.REF Gene_Symbol Chromosome Genomic_Coordinate
+1            cg13869341      WASH5P          1              15865
+2            cg14008030      WASH5P          1              18827
+> table(infoM$Chromosome, useNA="ifany")
+
+    1    10    11    12    13    14    15    16    17    18    19     2    20 
+38242 19826 23592 19786  9777 12319 12483 18028 23465  5021 21102 28054  8658 
+   21    22     3     4     5     6     7     8     9     X     Y  <NA> 
+ 3539  7037 20107 15950 19619 29143 24109 16547  8047  9760    33    65 
+> 
+> # ------------------------------------------------------------------------
+> # read in more detailed methyaltion information
+> # ------------------------------------------------------------------------
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/shared_data/450k")
+> 
+> infMd = read.table("HumanMethylation450_15017482_v1-2_filtered_updated.txt",
++ sep="\t", header=TRUE, as.is=TRUE, quote="")
+> 
+> dim(infMd)
+[1] 393401     22
+> infMd[1:2,]
+        Name Infinium_Design_Type Next_Base Color_Channel Genome_Build CHR
+1 cg00035864                   II                                   37   Y
+2 cg00050873                    I         A           Red           37   Y
+  MAPINFO Strand Random_Loci Methyl27_Loci UCSC_RefGene_Name
+1 8553009      F          NA            NA            TTTY18
+2 9363356      R          NA            NA    TSPY4;FAM197Y2
+  UCSC_RefGene_Accession UCSC_RefGene_Group UCSC_CpG_Islands_Name
+1              NR_001550            TSS1500                      
+2 NM_001164471;NR_001553       Body;TSS1500  chrY:9363680-9363943
+  Relation_to_UCSC_CpG_Island Phantom DMR Enhancer        HMM_Island
+1                                               NA                  
+2                     N_Shore                   NA Y:9973136-9976273
+  Regulatory_Feature_Name Regulatory_Feature_Group DHS
+1                                                   NA
+2                                                   NA
+> 
+> # --------------------------------------------------------------
+> # iteratively summarizing results
+> # --------------------------------------------------------------
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/BRCA/_data2")
+> 
+> source("~/research/TCGA/_Sun_MethyE/shared_code/eQTL_Plot.R")
+> 
+> for(i in 1:4){
++   
++   inputi  = inputs[i]
++   outputi = outputs[i]
++   
++   # ------------------------------------------------------------
++   # read in eQTL results
++   # ------------------------------------------------------------
++ 
++   pvs = read.table(inputi, header=TRUE, sep="\t", as.is=TRUE)
++   dim(pvs)
++   pvs[1:2,]
++ 
++   summary(pvs$p.value)
++ 
++   pvs = pvs[pvs$p.value < 1e-50,]
++   dim(pvs)
++   gc()
++ 
++   summary(pvs$p.value)
++ 
++   table(pvs$p.value < 1e-60)
++   table(pvs$p.value < 1e-70)
++   table(pvs$p.value < 1e-80)
++   table(pvs$p.value < 1e-90)
++   table(pvs$p.value < 1e-100)
++ 
++   # ------------------------------------------------------------
++   # plot it
++   # ------------------------------------------------------------
++ 
++   table(pvs$gene %in% infoE$gene)
++   table(pvs$SNP  %in% infoM$Composite.Element.REF)
++ 
++   geneID   = match(pvs$gene, infoE$gene)
++   markerID = match(pvs$SNP,  infoM$Composite.Element.REF)
++   scores   = pvs$p.value
++   scuts    = c(1e-60, 1e-70, 1e-80, 1e-100)
++   cols     = c("green", "blue", "red", "black")
++   eChr     = gsub("chr", "", infoE$chr)
++   ePos     = 0.5*(infoE$start + infoE$end)
++   mChr     = infoM$Chromosome
++   mPos     = infoM$Genomic_Coordinate
++   chroms   = 1:22
++ 
++   png(sprintf("../figures2/%s", outputi), width=7.5, height=9,
++       res=200, units="in")
++ 
++   eqtl.plot(geneID, markerID, scores, scuts, cols, eChr, ePos, mChr,
++             mPos, chroms, xlab="Methylation Probe Location",
++             ylab="Transcript Location", plot.hotspots=TRUE,
++             hotspots.cut=10, score.type="p-value")
++             
++   dev.off()
++ 
++   # ------------------------------------------------------------
++   # plot it after removing those possible problematic probes
++   # ------------------------------------------------------------
++ 
++   table(pvs$SNP  %in% infMd$Name)
++   pvs   = pvs[which(pvs$SNP  %in% infMd$Name),]
++ 
++   geneID   = match(pvs$gene, infoE$gene)
++   markerID = match(pvs$SNP,  infoM$Composite.Element.REF)
++   scores   = pvs$p.value
++   scuts    = c(1e-60, 1e-70, 1e-80, 1e-100)
++   cols     = c("green", "blue", "red", "black")
++   eChr     = gsub("chr", "", infoE$chr)
++   ePos     = 0.5*(infoE$start + infoE$end)
++   mChr     = infoM$Chromosome
++   mPos     = infoM$Genomic_Coordinate
++   chroms   = 1:22
++ 
++   outputi1 = sub(".png", "_rm_bad_m.png", outputi, fixed=TRUE)
++   png(sprintf("../figures2/%s", outputi1), width=7.5, height=9,
++   res=200, units="in")
++ 
++   eqtl.plot(geneID, markerID, scores, scuts, cols, eChr, ePos, mChr,
++   mPos, chroms, xlab="Methylation Probe Location",
++   ylab="Transcript Location", plot.hotspots=TRUE,
++   hotspots.cut=10, score.type="p-value")
++ 
++   dev.off()
++ 
++ }
+> 
+> # ------------------------------------------------------------------------
+> # check the association between purity and subtypes
+> # ------------------------------------------------------------------------
+> 
+> ff0 = "patient_brca_female_Caucasian_EMC_info_absolute.txt"
+> emInfo = read.table(ff0, sep = "\t", header = TRUE, as.is=TRUE)
+> dim(emInfo)
+[1] 405  24
+> emInfo[1,]
+  bcr_patient_barcode patient_id tissue_source_site birth_days_to
+1        TCGA-A1-A0SE       A0SE                 A1        -20717
+  last_contact_days_to    death_days_to vital_status
+1                 1321 [Not Applicable]        Alive
+  ajcc_pathologic_tumor_stage tumor_status age_at_diagnosis
+1                     Stage I   TUMOR FREE               56
+           methylation_barcode
+1 TCGA-A1-A0SE-01A-11D-A10P-05
+                                                               methylation_file
+1 jhu-usc.edu_BRCA.HumanMethylation450.4.lvl-3.TCGA-A1-A0SE-01A-11D-A10P-05.txt
+            expression_barcode
+1 TCGA-A1-A0SE-01A-11R-A084-07
+                                                          expression_file
+1 unc.edu.a998e0ce-9248-460f-aabc-2dad452a1ff9.1153763.rsem.genes.results
+                    cn_barcode
+1 TCGA-A1-A0SE-01A-11D-A087-01
+                                                              cn_file abs_call
+1 SHAWM_p_TCGAb72_SNP_N_GenomeWideSNP_6_D12_698000.nocnv_hg19.seg.txt   called
+  abs_purity abs_ploidy abs_doublings pam50    noHM_PC1     noHM_PC2
+1        0.3       4.07             1  LumA 0.008748328 -0.008863467
+     noHM_PC3
+1 -0.05572216
+> 
+> lm1 = lm(emInfo$abs_purity ~ emInfo$pam50)
+> summary(lm1)
+
+Call:
+lm(formula = emInfo$abs_purity ~ emInfo$pam50)
+
+Residuals:
+     Min       1Q   Median       3Q      Max 
+-0.41477 -0.12016 -0.00477  0.13523  0.41984 
+
+Coefficients:
+                   Estimate Std. Error t value Pr(>|t|)    
+(Intercept)         0.53016    0.02209  24.005  < 2e-16 ***
+emInfo$pam50Her2   -0.06492    0.04417  -1.470  0.14242    
+emInfo$pam50LumA    0.05462    0.02502   2.183  0.02965 *  
+emInfo$pam50LumB    0.09281    0.02873   3.230  0.00134 ** 
+emInfo$pam50Normal -0.15141    0.06580  -2.301  0.02189 *  
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.1753 on 400 degrees of freedom
+Multiple R-squared:  0.06951,	Adjusted R-squared:  0.06021 
+F-statistic: 7.471 on 4 and 400 DF,  p-value: 8.225e-06
+
+> anova(lm1)
+Analysis of Variance Table
+
+Response: emInfo$abs_purity
+              Df  Sum Sq Mean Sq F value    Pr(>F)    
+emInfo$pam50   4  0.9183 0.22958  7.4708 8.225e-06 ***
+Residuals    400 12.2919 0.03073                      
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+> 
+> pdf("../figures2/purity_vs_subtypes.pdf", width=5, height=3)
+> par(mar=c(2,4,1,1), bty="n")
+> boxplot(emInfo$abs_purity ~ emInfo$pam50)
+> 
+> stripchart(emInfo$abs_purity ~ emInfo$pam50,
++ method = "jitter", jitter = 0.2, offset = 1/3,
++ vertical = TRUE, add=TRUE, pch=1)
+> dev.off()
+null device 
+          1 
+> 
+> q(save = "no")
+> proc.time()
+   user  system elapsed 
+241.738   5.160 262.345 

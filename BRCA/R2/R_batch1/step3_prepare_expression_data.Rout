@@ -1,0 +1,848 @@
+
+R version 3.1.0 (2014-04-10) -- "Spring Dance"
+Copyright (C) 2014 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin13.1.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/BRCA")
+> 
+> ff0    = "_data2/patient_brca_female_Caucasian_EMC_info_absolute.txt"
+> emInfo = read.table(ff0, sep = "\t", header = TRUE, as.is=TRUE)
+> dim(emInfo)
+[1] 405  24
+> emInfo[1,]
+  bcr_patient_barcode patient_id tissue_source_site birth_days_to
+1        TCGA-A1-A0SE       A0SE                 A1        -20717
+  last_contact_days_to    death_days_to vital_status
+1                 1321 [Not Applicable]        Alive
+  ajcc_pathologic_tumor_stage tumor_status age_at_diagnosis
+1                     Stage I   TUMOR FREE               56
+           methylation_barcode
+1 TCGA-A1-A0SE-01A-11D-A10P-05
+                                                               methylation_file
+1 jhu-usc.edu_BRCA.HumanMethylation450.4.lvl-3.TCGA-A1-A0SE-01A-11D-A10P-05.txt
+            expression_barcode
+1 TCGA-A1-A0SE-01A-11R-A084-07
+                                                          expression_file
+1 unc.edu.a998e0ce-9248-460f-aabc-2dad452a1ff9.1153763.rsem.genes.results
+                    cn_barcode
+1 TCGA-A1-A0SE-01A-11D-A087-01
+                                                              cn_file abs_call
+1 SHAWM_p_TCGAb72_SNP_N_GenomeWideSNP_6_D12_698000.nocnv_hg19.seg.txt   called
+  abs_purity abs_ploidy abs_doublings pam50    noHM_PC1     noHM_PC2
+1        0.3       4.07             1  LumA 0.008748328 -0.008863467
+     noHM_PC3
+1 -0.05572216
+> 
+> colSums(is.na(emInfo))
+        bcr_patient_barcode                  patient_id 
+                          0                           0 
+         tissue_source_site               birth_days_to 
+                          0                           0 
+       last_contact_days_to               death_days_to 
+                         45                           0 
+               vital_status ajcc_pathologic_tumor_stage 
+                          0                           2 
+               tumor_status            age_at_diagnosis 
+                         79                           0 
+        methylation_barcode            methylation_file 
+                          0                           0 
+         expression_barcode             expression_file 
+                          0                           0 
+                 cn_barcode                     cn_file 
+                          0                           0 
+                   abs_call                  abs_purity 
+                          0                           0 
+                 abs_ploidy               abs_doublings 
+                          0                           0 
+                      pam50                    noHM_PC1 
+                          0                           0 
+                   noHM_PC2                    noHM_PC3 
+                          0                           0 
+> 
+> # ------------------------------------------------------------
+> # read in gene expression data
+> # ------------------------------------------------------------
+> 
+> datE = read.table(file = "RNAseqV2/rawCounts_tumor_v2.txt", sep = "\t",
++ header = TRUE, as.is=TRUE)
+> dim(datE)
+[1] 20531   508
+> datE[1:2,1:5]
+            TCGA.3C.AAAU.01A.11R.A41B.07 TCGA.4H.AAAK.01A.12R.A41B.07
+?|100130426                         0.00                         0.00
+?|100133144                        47.48                        16.09
+            TCGA.A1.A0SB.01A.11R.A144.07 TCGA.A1.A0SE.01A.11R.A084.07
+?|100130426                         0.00                          0.0
+?|100133144                        34.05                         30.5
+            TCGA.A1.A0SF.01A.11R.A144.07
+?|100130426                         0.00
+?|100133144                        23.93
+> 
+> table(emInfo$expression_barcode %in% gsub(".", "-", names(datE), fixed=TRUE))
+
+TRUE 
+ 405 
+> 
+> cnms = strsplit(names(datE), split=".", fixed=TRUE)
+> table(sapply(cnms, length))
+
+  7 
+508 
+> cnms = matrix(unlist(cnms), byrow=TRUE, ncol=7)
+> 
+> dim(cnms)
+[1] 508   7
+> cnms[1:5,]
+     [,1]   [,2] [,3]   [,4]  [,5]  [,6]   [,7]
+[1,] "TCGA" "3C" "AAAU" "01A" "11R" "A41B" "07"
+[2,] "TCGA" "4H" "AAAK" "01A" "12R" "A41B" "07"
+[3,] "TCGA" "A1" "A0SB" "01A" "11R" "A144" "07"
+[4,] "TCGA" "A1" "A0SE" "01A" "11R" "A084" "07"
+[5,] "TCGA" "A1" "A0SF" "01A" "11R" "A144" "07"
+> length(unique(cnms[,3]))
+[1] 508
+> 
+> names(datE) = cnms[,3]
+> 
+> table(emInfo$patient_id %in% names(datE))
+
+TRUE 
+ 405 
+> 
+> datE = datE[,match(emInfo$patient_id, names(datE))]
+> dim(datE)
+[1] 20531   405
+> datE[1:2,1:5]
+            A0SE  A0SF  A0SG A0SH  A0SI
+?|100130426  0.0  0.00  0.00 0.00  0.00
+?|100133144 30.5 23.93 16.84 4.68 12.88
+> 
+> # ------------------------------------------------------------
+> # read in gene location information
+> # ------------------------------------------------------------
+> 
+> ff2   = "_data2/gene_info.txt"
+> infoE = read.table(ff2, sep = "\t", header = TRUE, as.is=TRUE)
+> dim(infoE)
+[1] 20323     8
+> infoE[1:2,]
+         gene geneSymbol geneID   chr     start       end strand
+1   CPA1|1357       CPA1   1357  chr7 130020290 130027948      +
+2 GUCY2D|3000     GUCY2D   3000 chr17   7905988   7923658      +
+          ensembl
+1 ENSG00000091704
+2 ENSG00000132518
+> length(unique(infoE$gene))
+[1] 20323
+> 
+> table(rownames(datE) %in% infoE$gene)
+
+FALSE  TRUE 
+  208 20323 
+> 
+> features = intersect(rownames(datE), infoE$gene)
+> table(infoE$gene  %in% features)
+
+ TRUE 
+20323 
+> table(rownames(datE)  %in% features)
+
+FALSE  TRUE 
+  208 20323 
+> 
+> datE  = datE[match(features, rownames(datE)),]
+> infoE = infoE[match(features, infoE$gene),]
+> 
+> dim(datE)
+[1] 20323   405
+> dim(infoE)
+[1] 20323     8
+> 
+> infoE[1:5,]
+             gene geneSymbol    geneID   chr     start       end strand ensembl
+6531  ?|100130426          ? 100130426  chr9  79791679  79792806      +    <NA>
+13631     ?|10357          ?     10357 chr20  56063450  56064083      -    <NA>
+7129      ?|10431          ?     10431 chr10  51592090  51623336      -    <NA>
+3332     ?|136542          ?    136542  chr7 141940630 141943268      +    <NA>
+6598     ?|155060          ?    155060  chr7 148959262 148994397      +    <NA>
+> 
+> table(rownames(datE) == infoE$gene)
+
+ TRUE 
+20323 
+> table(infoE$chr)
+
+ chr1 chr10 chr11 chr12 chr13 chr14 chr15 chr16 chr17 chr18 chr19  chr2 chr20 
+ 2081   770  1309  1052   340   659   662   837  1199   277  1412  1270   576 
+chr21 chr22  chr3  chr4  chr5  chr6  chr7  chr8  chr9  chrX  chrY 
+  255   470  1105   761   900  1084   959   673   821   803    48 
+> table(infoE$strand)
+
+    -     + 
+10005 10318 
+> table(is.na(infoE$ensembl))
+
+FALSE  TRUE 
+18314  2009 
+> 
+> # ------------------------------------------------------------
+> # read in gene expression data direclty obtained from bam files
+> # ------------------------------------------------------------
+> 
+> datBam = read.table(file = "~/research/TCGA/BRCA/data/gene_counts_EA.txt",
++   sep = "\t", header=TRUE, as.is=TRUE)
+> dim(datBam)
+[1] 18827   551
+> datBam[1:2,1:5]
+                A0D9 A0DB A13G A0AU A0AY
+ENSG00000000003 2444 4707 3729 1249 2186
+ENSG00000000005   63   65    3   36   34
+> 
+> genes2use = intersect(rownames(datBam), infoE$ensembl)
+> length(genes2use)
+[1] 14889
+> 
+> datBam2 = datBam[match(genes2use, rownames(datBam)), ]
+> datE2   = datE[match(genes2use, infoE$ensembl),]
+> 
+> dim(datBam2)
+[1] 14889   551
+> dim(datE2)
+[1] 14889   405
+> samples = intersect(names(datBam2), names(datE2))
+> length(samples)
+[1] 328
+> 
+> datBam3 = datBam2[, match(samples, names(datBam2))]
+> datE3   = datE2[, match(samples, names(datE2))]
+> 
+> dim(datBam3)
+[1] 14889   328
+> dim(datE3)
+[1] 14889   328
+> 
+> datBam3[1:5,1:5]
+                A13G A0AU A0AZ A0BA A0BM
+ENSG00000000003 3729 1249 1846 6280 3693
+ENSG00000000005    3   36   41  111  171
+ENSG00000000419 1837 1692 1091 2827  846
+ENSG00000000457 3918 1195 1089 2990  915
+ENSG00000000460 1194  635  427 2434  280
+> datE3[1:5,1:5]
+                  A13G    A0AU   A0AZ    A0BA    A0BM
+TSPAN6|7105    3510.00 1171.00 1734.0 5864.00 3476.00
+TNMD|64102        3.00   31.00   39.0   96.00  155.00
+DPM1|8813      1615.00 1447.00  962.0 2547.00  749.00
+SCYL3|57147    4696.97 1404.57 1407.8 3835.35 1373.09
+C1orf112|55732 1092.03  571.43  382.2 2227.65  226.91
+> 
+> crs1 = crs2 = rep(NA, ncol(datBam3))
+> 
+> pdf("figures2/compare_TReC.pdf", width=6, height=6)
+> par(mar=c(5,4,1,1), bty="n")
+> 
+> for(i in 1:ncol(datBam3)){
++   crs1[i] = cor(datBam3[,i], datE3[,i])
++   crs2[i] = cor(log(datBam3[,i]+1), log(datE3[,i]+1))
++   plot(log10(datBam3[,i]+1), log10(datE3[,i]+1),
++       xlab="log10 TReC our own counting",
++       ylab="log10 TReC from data portal",
++       main=names(datBam3)[i])
++   abline(0, 1, lwd=2, col="grey")
++ }
+> dev.off()
+null device 
+          1 
+> 
+> summary(crs1)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+ 0.9571  0.9831  0.9877  0.9868  0.9918  0.9994 
+> summary(crs2)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+ 0.9516  0.9721  0.9749  0.9741  0.9774  0.9828 
+> 
+> # ------------------------------------------------------------
+> # find a cutoff to filter out low expressed genes
+> # ------------------------------------------------------------
+> 
+> datEA = data.matrix(datE)
+> 
+> rMin = apply(datEA, 1, min)
+> rMed = apply(datEA, 1, median)
+> r75  = apply(datEA, 1, quantile, probs=0.75)
+> r90  = apply(datEA, 1, quantile, probs=0.90)
+> 
+> summary(rMin)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+    0.0     0.0    38.0   378.6   349.0 60300.0 
+> summary(rMed)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+      0      15     577    2270    2286  302100 
+> summary(r75)
+    Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
+     0.0     35.0    912.1   3306.0   3286.0 523500.0 
+> summary(r90)
+    Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
+     0.0     80.6   1375.0   4731.0   4568.0 834100.0 
+> 
+> cor(rMin, rMed)
+[1] 0.8291515
+> cor(r75,  rMed)
+[1] 0.9853691
+> cor(r90,  rMed)
+[1] 0.9452177
+> 
+> pdf("figures2/expression_cts_summary.pdf", width=6, height=6)
+> par(mfrow=c(2,2), mar=c(5,4,1,1), bty="n")
+> hist(log10(1+rMin), xlab="log10(min + 1)", main="")
+> hist(log10(1+rMed), xlab="log10(median + 1)", main="")
+> hist(log10(1+r75),  xlab="log10(75 percentile + 1)", main="")
+> hist(log10(1+r90),  xlab="log10(90 percentile + 1)", main="")
+> dev.off()
+null device 
+          1 
+> 
+> summary(rMin[rMed >=10])
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+    0.0    10.0   136.0   491.6   501.0 60300.0 
+> summary(rMed[r75 >=20])
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+      0     254    1144    2917    3008  302100 
+> 
+> table(rMed >=10)
+
+FALSE  TRUE 
+ 4671 15652 
+> table(r75 >=20)
+
+FALSE  TRUE 
+ 4507 15816 
+> 
+> w2kp = which(r75 >=20)
+> 
+> dim(datEA)
+[1] 20323   405
+> datEA = datEA[w2kp,]
+> dim(datEA)
+[1] 15816   405
+> 
+> dim(infoE)
+[1] 20323     8
+> infoE = infoE[w2kp,]
+> dim(infoE)
+[1] 15816     8
+> 
+> if(! all(rownames(datEA) == infoE$gene) ){
++   stop("gene name mismatch\n")
++ }
+> 
+> # ------------------------------------------------------------
+> # normalize gene expression by read-depth
+> # ------------------------------------------------------------
+> 
+> tot = colSums(datEA)
+> s75 = apply(datEA, 2, quantile, prob=0.75)
+> 
+> cor(tot, s75)
+[1] 0.9738152
+> 
+> pdf("figures2/expression_total_vs_75_percentile.pdf", width=4, height=4)
+> par(mar=c(5,4,1,1), bty="n")
+> plot(tot/1e6, s75/1000, xlab="total reads (million)",
++ ylab="75 percentile (thousand)", cex=0.5)
+> dev.off()
+null device 
+          1 
+> 
+> nDat = t(log10(t((datEA + 1))/s75))
+> dim(nDat)
+[1] 15816   405
+> 
+> # ------------------------------------------------------------
+> # Run PCA using gene expression data, check possible outlier
+> # these PCs do include many batch effect information
+> # ------------------------------------------------------------
+> 
+> datR14Pr = nDat - rowMeans(nDat, na.rm=TRUE)
+> 
+> datR14Pr[is.na(datR14Pr)] = 0
+> covdatR1 = t(datR14Pr) %*% datR14Pr / nrow(datR14Pr)
+> dim(covdatR1)
+[1] 405 405
+> prdatR1  = eigen(covdatR1)
+> 
+> prdatR1$values[1:20]
+ [1] 6.3294171 4.1661980 2.4510039 1.9792607 1.6968699 1.3819342 1.0618338
+ [8] 0.9542414 0.8473388 0.7337741 0.6840278 0.6113519 0.5533659 0.5425229
+[15] 0.5062078 0.4351131 0.3895012 0.3618055 0.3491392 0.3300232
+> 
+> PC1 =  prdatR1$vectors[,1]
+> PC2 =  prdatR1$vectors[,2]
+> PC3 =  prdatR1$vectors[,3]
+> 
+> pdf("figures2/expression_PCs_log_TReC.pdf", width=6, height=6)
+> par(mar=c(5,4,1,1), mfrow=c(2,2))
+> barplot(prdatR1$values[1:20], main="", xlab="Index", ylab="Eigen-value")
+> 
+> par(mar=c(5,4,1,1))
+> subtypes = unique(na.omit(emInfo$pam50))
+> cols = c("red", "green", "blue", "purple", "orange")
+> 
+> legend("topright", legend=subtypes, col=cols, pch=1, bty="n")
+> 
+> plot(PC1, PC2,  bty="n", cex=0.8)
+> for(j in 1:5){
++   sj = subtypes[j]
++   wj = which(emInfo$pam50 == sj)
++   points(PC1[wj], PC2[wj], col=cols[j], cex=0.8)
++ }
+> 
+> plot(PC1, PC3,  bty="n", cex=0.8)
+> for(j in 1:5){
++   sj = subtypes[j]
++   wj = which(emInfo$pam50 == sj)
++   points(PC1[wj], PC3[wj], col=cols[j], cex=0.8)
++ }
+> 
+> plot(PC2, PC3,  bty="n", cex=0.8)
+> for(j in 1:5){
++   sj = subtypes[j]
++   wj = which(emInfo$pam50 == sj)
++   points(PC2[wj], PC3[wj], col=cols[j], cex=0.8)
++ }
+> 
+> dev.off()
+null device 
+          1 
+> 
+> cor(prdatR1$vectors[,1:5], emInfo$abs_purity, use="pair")
+            [,1]
+[1,] -0.36856631
+[2,]  0.56927414
+[3,]  0.02209082
+[4,]  0.29984603
+[5,] -0.06288133
+> summary(lm(PC1 ~ emInfo$pam50))
+
+Call:
+lm(formula = PC1 ~ emInfo$pam50)
+
+Residuals:
+     Min       1Q   Median       3Q      Max 
+-0.07870 -0.01354  0.00144  0.01399  0.04954 
+
+Coefficients:
+                    Estimate Std. Error t value Pr(>|t|)    
+(Intercept)         0.097706   0.002734  35.731  < 2e-16 ***
+emInfo$pam50Her2   -0.063531   0.005469 -11.617  < 2e-16 ***
+emInfo$pam50LumA   -0.123501   0.003098 -39.861  < 2e-16 ***
+emInfo$pam50LumB   -0.113964   0.003557 -32.037  < 2e-16 ***
+emInfo$pam50Normal -0.056103   0.008146  -6.887 2.22e-11 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.0217 on 400 degrees of freedom
+Multiple R-squared:  0.8116,	Adjusted R-squared:  0.8097 
+F-statistic: 430.7 on 4 and 400 DF,  p-value: < 2.2e-16
+
+> summary(lm(PC2 ~ emInfo$pam50))
+
+Call:
+lm(formula = PC2 ~ emInfo$pam50)
+
+Residuals:
+      Min        1Q    Median        3Q       Max 
+-0.099409 -0.029128 -0.003149  0.028498  0.126374 
+
+Coefficients:
+                    Estimate Std. Error t value Pr(>|t|)    
+(Intercept)         0.020460   0.005382   3.802 0.000166 ***
+emInfo$pam50Her2   -0.010188   0.010764  -0.946 0.344468    
+emInfo$pam50LumA   -0.039746   0.006098  -6.518 2.15e-10 ***
+emInfo$pam50LumB    0.016074   0.007001   2.296 0.022199 *  
+emInfo$pam50Normal -0.088929   0.016033  -5.547 5.30e-08 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.04272 on 400 degrees of freedom
+Multiple R-squared:  0.2701,	Adjusted R-squared:  0.2628 
+F-statistic: 37.01 on 4 and 400 DF,  p-value: < 2.2e-16
+
+> summary(lm(PC3 ~ emInfo$pam50))
+
+Call:
+lm(formula = PC3 ~ emInfo$pam50)
+
+Residuals:
+      Min        1Q    Median        3Q       Max 
+-0.156937 -0.030742  0.002365  0.033314  0.133324 
+
+Coefficients:
+                    Estimate Std. Error t value Pr(>|t|)  
+(Intercept)        -0.005856   0.006250  -0.937   0.3493  
+emInfo$pam50Her2    0.025669   0.012500   2.054   0.0407 *
+emInfo$pam50LumA    0.003360   0.007081   0.475   0.6354  
+emInfo$pam50LumB    0.009910   0.008130   1.219   0.2236  
+emInfo$pam50Normal  0.023109   0.018619   1.241   0.2153  
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.04961 on 400 degrees of freedom
+Multiple R-squared:  0.01566,	Adjusted R-squared:  0.00582 
+F-statistic: 1.591 on 4 and 400 DF,  p-value: 0.1758
+
+> 
+> # ------------------------------------------------------------
+> # write out data and information
+> # ------------------------------------------------------------
+> 
+> dim(datEA)
+[1] 15816   405
+> datEA[1:2,1:5]
+           A0SE    A0SF    A0SG    A0SH    A0SI
+?|10357  465.37  329.58  190.51  220.96  215.94
+?|10431 3295.00 2847.00 2980.00 2739.00 2984.00
+> 
+> write.table(datEA, file = "_data2/expression_counts.txt", append = FALSE,
++             quote = FALSE, sep = "\t", row.names = TRUE,col.names = TRUE)
+> 
+> table(colnames(nDat) == emInfo$patient_id)
+
+TRUE 
+ 405 
+> pDat = data.frame(id=rownames(nDat), nDat)
+> dim(pDat)
+[1] 15816   406
+> pDat[1:2,1:5]
+             id        A0SE        A0SF        A0SG        A0SH
+?|10357 ?|10357 -0.86700645 -0.89707264 -1.21189353 -1.14340258
+?|10431 ?|10431 -0.01774985  0.03819077 -0.01972301 -0.05192673
+> 
+> write.table(pDat, file = "_data2/expression_log_TReC.txt", append = FALSE,
++             quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
+> 
+> dim(infoE)
+[1] 15816     8
+> infoE[1:5,]
+          gene geneSymbol geneID   chr     start       end strand ensembl
+13631  ?|10357          ?  10357 chr20  56063450  56064083      -    <NA>
+7129   ?|10431          ?  10431 chr10  51592090  51623336      -    <NA>
+6598  ?|155060          ? 155060  chr7 148959262 148994397      +    <NA>
+16277 ?|390284          ? 390284 chr12   6547667   6547997      +    <NA>
+18773  ?|57714          ?  57714 chr17  78234667  78310700      +    <NA>
+> 
+> write.table(infoE, file = "_data2/expression_info.txt", append = FALSE,
++             quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
+> 
+> # ------------------------------------------------------------
+> # check the association between gene expression and batches
+> # ------------------------------------------------------------
+> 
+> samE = strsplit(emInfo$expression_barcode, split="-", fixed=TRUE)
+> table(sapply(samE, length))
+
+  7 
+405 
+> samE = matrix(unlist(samE), byrow=TRUE, ncol=7)
+> dim(samE)
+[1] 405   7
+> samE[1,]
+[1] "TCGA" "A1"   "A0SE" "01A"  "11R"  "A084" "07"  
+> 
+> table(samE[,1])
+
+TCGA 
+ 405 
+> table(samE[,7])
+
+ 07 
+405 
+> 
+> samE = data.frame(samE[,2:6], stringsAsFactors=FALSE)
+> names(samE) = c("institution", "patientID", "type", "portion", "plate")
+> dim(samE)
+[1] 405   5
+> samE[1:2,]
+  institution patientID type portion plate
+1          A1      A0SE  01A     11R  A084
+2          A1      A0SF  01A     11R  A144
+> 
+> table(rowSums(is.na(nDat)))
+
+    0 
+15816 
+> 
+> pE    = matrix(NA, nrow=nrow(nDat), ncol=6)
+> rDatE = matrix(NA, nrow=nrow(nDat), ncol=ncol(nDat))
+> age   = emInfo$age_at_diagnosis
+> PC1   = emInfo$noHM_PC1
+> PC2   = emInfo$noHM_PC2
+> PC3   = emInfo$noHM_PC3
+> 
+> for(i in 1:nrow(nDat)){
++   
++   if(i %% 1000 == 0){
++     cat(i, date(), "\n")
++   }
++   
++   yi = nDat[i,]
++   li = lm(yi ~ samE$institution + samE$plate + age + PC1 + PC2 + PC3)
++   ai = anova(li)
++   
++   pE[i,] = ai[1:6,5]
++ 
++   rDatE[i,] = li$residuals
++ }
+1000 Mon Aug 10 20:07:56 2015 
+2000 Mon Aug 10 20:08:01 2015 
+3000 Mon Aug 10 20:08:07 2015 
+4000 Mon Aug 10 20:08:12 2015 
+5000 Mon Aug 10 20:08:17 2015 
+6000 Mon Aug 10 20:08:21 2015 
+7000 Mon Aug 10 20:08:26 2015 
+8000 Mon Aug 10 20:08:32 2015 
+9000 Mon Aug 10 20:08:37 2015 
+10000 Mon Aug 10 20:08:43 2015 
+11000 Mon Aug 10 20:08:48 2015 
+12000 Mon Aug 10 20:08:53 2015 
+13000 Mon Aug 10 20:08:58 2015 
+14000 Mon Aug 10 20:09:03 2015 
+15000 Mon Aug 10 20:09:08 2015 
+> 
+> pdf("figures2/expression_vs_batches_p-value.pdf", width=10.5, height=7)
+> par(mfrow=c(2,3), mar=c(5,4,2,1), bty="n")
+> hist(pE[,1], xlab="p-value", main="instituion")
+> hist(pE[,2], xlab="p-value", main="plate")
+> hist(pE[,3], xlab="p-value", main="age")
+> 
+> hist(pE[,4], xlab="p-value", main="PC1")
+> hist(pE[,5], xlab="p-value", main="PC2")
+> hist(pE[,6], xlab="p-value", main="PC3")
+> 
+> dev.off()
+null device 
+          1 
+> 
+> summary(pE)
+       V1                 V2                  V3                V4           
+ Min.   :0.000000   Min.   :0.0000000   Min.   :0.00000   Min.   :0.0002064  
+ 1st Qu.:0.006588   1st Qu.:0.0009187   1st Qu.:0.04339   1st Qu.:0.2806609  
+ Median :0.091312   Median :0.0448982   Median :0.22458   Median :0.5369350  
+ Mean   :0.214107   Mean   :0.1811569   Mean   :0.32168   Mean   :0.5233384  
+ 3rd Qu.:0.349813   3rd Qu.:0.2855057   3rd Qu.:0.55829   3rd Qu.:0.7706296  
+ Max.   :0.999573   Max.   :0.9998886   Max.   :0.99992   Max.   :0.9998534  
+       V5                  V6           
+ Min.   :0.0000053   Min.   :0.0000521  
+ 1st Qu.:0.2587968   1st Qu.:0.1711642  
+ Median :0.5036444   Median :0.4172791  
+ Mean   :0.5056984   Mean   :0.4404646  
+ 3rd Qu.:0.7520744   3rd Qu.:0.6915401  
+ Max.   :0.9998188   Max.   :0.9997972  
+> 
+> # ------------------------------------------------------------
+> # Run PCA using gene expression data, check possible outlier
+> # these PCs do include many batch effect information
+> # ------------------------------------------------------------
+> 
+> datR14Pr = rDatE - rowMeans(rDatE, na.rm=TRUE)
+> 
+> datR14Pr[is.na(datR14Pr)] = 0
+> covdatR1 = t(datR14Pr) %*% datR14Pr / nrow(datR14Pr)
+> dim(covdatR1)
+[1] 405 405
+> prdatR1  = eigen(covdatR1)
+> 
+> prdatR1$values[1:20]
+ [1] 5.6323389 3.2877842 1.7938583 1.5261316 1.4068694 1.2088235 0.9071359
+ [8] 0.8185424 0.7342624 0.6178318 0.5619667 0.5072501 0.4673794 0.4574191
+[15] 0.4375442 0.3960859 0.3555687 0.3371604 0.3053035 0.2991792
+> 
+> PC1 =  prdatR1$vectors[,1]
+> PC2 =  prdatR1$vectors[,2]
+> PC3 =  prdatR1$vectors[,3]
+> 
+> pdf("figures2/expression_PCs_log_TReC_rm_institute_plate_age_genoPC.pdf",
++ width=6, height=6)
+> par(mar=c(5,4,1,1), mfrow=c(2,2))
+> barplot(prdatR1$values[1:20], main="",
++ xlab="Index", ylab="Eigen-value")
+> 
+> par(mar=c(5,4,1,1))
+> subtypes = unique(na.omit(emInfo$pam50))
+> cols = c("red", "green", "blue", "purple", "orange")
+> 
+> legend("topright", legend=subtypes, col=cols, pch=1, bty="n")
+> 
+> plot(PC1, PC2,  bty="n", cex=0.8)
+> for(j in 1:5){
++   sj = subtypes[j]
++   wj = which(emInfo$pam50 == sj)
++   points(PC1[wj], PC2[wj], col=cols[j], cex=0.8)
++ }
+> 
+> plot(PC1, PC3,  bty="n", cex=0.8)
+> for(j in 1:5){
++   sj = subtypes[j]
++   wj = which(emInfo$pam50 == sj)
++   points(PC1[wj], PC3[wj], col=cols[j], cex=0.8)
++ }
+> 
+> plot(PC2, PC3,  bty="n", cex=0.8)
+> for(j in 1:5){
++   sj = subtypes[j]
++   wj = which(emInfo$pam50 == sj)
++   points(PC2[wj], PC3[wj], col=cols[j], cex=0.8)
++ }
+> 
+> dev.off()
+null device 
+          1 
+> 
+> cor(prdatR1$vectors[,1:5], emInfo$abs_purity, use="pair")
+            [,1]
+[1,] -0.30835923
+[2,]  0.55049424
+[3,]  0.28737166
+[4,] -0.03657689
+[5,]  0.05491373
+> summary(lm(PC1 ~ emInfo$pam50))
+
+Call:
+lm(formula = PC1 ~ emInfo$pam50)
+
+Residuals:
+      Min        1Q    Median        3Q       Max 
+-0.076085 -0.016298  0.000484  0.015481  0.077755 
+
+Coefficients:
+                    Estimate Std. Error t value Pr(>|t|)    
+(Intercept)         0.094507   0.003084  30.645  < 2e-16 ***
+emInfo$pam50Her2   -0.058662   0.006168  -9.511  < 2e-16 ***
+emInfo$pam50LumA   -0.118904   0.003494 -34.029  < 2e-16 ***
+emInfo$pam50LumB   -0.111933   0.004012 -27.901  < 2e-16 ***
+emInfo$pam50Normal -0.057596   0.009187  -6.269 9.41e-10 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.02448 on 400 degrees of freedom
+Multiple R-squared:  0.7603,	Adjusted R-squared:  0.7579 
+F-statistic: 317.2 on 4 and 400 DF,  p-value: < 2.2e-16
+
+> summary(lm(PC2 ~ emInfo$pam50))
+
+Call:
+lm(formula = PC2 ~ emInfo$pam50)
+
+Residuals:
+      Min        1Q    Median        3Q       Max 
+-0.119674 -0.033007 -0.000424  0.029403  0.121137 
+
+Coefficients:
+                    Estimate Std. Error t value Pr(>|t|)    
+(Intercept)         0.017417   0.005633   3.092  0.00213 ** 
+emInfo$pam50Her2   -0.018978   0.011266  -1.685  0.09285 .  
+emInfo$pam50LumA   -0.032559   0.006382  -5.102 5.21e-07 ***
+emInfo$pam50LumB    0.014061   0.007328   1.919  0.05571 .  
+emInfo$pam50Normal -0.088316   0.016781  -5.263 2.32e-07 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.04471 on 400 degrees of freedom
+Multiple R-squared:  0.2004,	Adjusted R-squared:  0.1924 
+F-statistic: 25.07 on 4 and 400 DF,  p-value: < 2.2e-16
+
+> summary(lm(PC3 ~ emInfo$pam50))
+
+Call:
+lm(formula = PC3 ~ emInfo$pam50)
+
+Residuals:
+      Min        1Q    Median        3Q       Max 
+-0.148573 -0.028284  0.002865  0.029675  0.162617 
+
+Coefficients:
+                    Estimate Std. Error t value Pr(>|t|)    
+(Intercept)         0.021172   0.005730   3.695 0.000251 ***
+emInfo$pam50Her2   -0.044851   0.011461  -3.913 0.000107 ***
+emInfo$pam50LumA   -0.011291   0.006493  -1.739 0.082786 .  
+emInfo$pam50LumB   -0.055788   0.007454  -7.484 4.64e-13 ***
+emInfo$pam50Normal -0.006158   0.017071  -0.361 0.718500    
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.04548 on 400 degrees of freedom
+Multiple R-squared:  0.1725,	Adjusted R-squared:  0.1643 
+F-statistic: 20.85 on 4 and 400 DF,  p-value: 1.261e-15
+
+> 
+> # ------------------------------------------------------------
+> # Run clustreing on expression data, check possible outlier
+> # ------------------------------------------------------------
+> 
+> cr1   = cor(rDatE)
+> summary(as.numeric(cr1))
+     Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+-0.550000 -0.105500 -0.007554  0.001378  0.094710  1.000000 
+> 
+> dist1 = as.dist(1 - cr1)
+> h1 = hclust(dist1)
+> 
+> pdf("figures2/expression_hclust_log_TReC_rm_institute_plate_age_genoPC.pdf",
++     width=8, height=4)
+> par(mar=c(5,4,1,1), las=1)
+> plot(h1, main="", labels=FALSE, cex=0.7)
+> 
+> for(j in 1:5){
++   sj = subtypes[j]
++   wj = which(emInfo$pam50[h1$order] == sj)
++   mtext("I", side=1, line=0, col=cols[j], at=wj, cex=1, font=2)
++ }
+> 
+> legend("topright", legend=subtypes, col=cols, pch="I", bty="n", cex=0.9)
+> 
+> dev.off()
+null device 
+          1 
+> 
+> # if the median correaltion of one sample with other samples is too low
+> # indicating this sample is an outlier and we shoudl remove it
+> 
+> Ds = apply(cr1, 1, median)
+> pdf("figures2/expression_D_statistics_rm_institute_plate_age_genoPC.pdf",
++     width=8, height=4)
+> par(mar=c(5,4,1,1), mfrow=c(1,2), bty="n")
+> hist(Ds, xlab="D statistics", breaks=20, main="")
+> 
+> plot(Ds, emInfo$abs_purity, type="n", ylab="Purity")
+> 
+> for(j in 1:5){
++   sj = subtypes[j]
++   wj = which(emInfo$pam50 == sj)
++   points(Ds[wj], emInfo$abs_purity[wj], col=cols[j], cex=0.8)
++ }
+> 
+> dev.off()
+null device 
+          1 
+> 
+> 
+> 
+> q(save = "no")
+> proc.time()
+   user  system elapsed 
+151.255   3.108 156.187 

@@ -1,0 +1,200 @@
+
+R version 3.1.0 (2014-04-10) -- "Spring Dance"
+Copyright (C) 2014 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin13.1.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> normscore = function(vec) {
++   len  = length(na.omit(vec))+1
++   rank = rank(na.omit(vec))
++   ties = (rank - floor(rank)) > 0
++   new.vec = vec[!is.na(vec)]
++   new.vec[!ties]=qnorm(rank[!ties]/len)
++   new.vec[ties] =0.5*(qnorm((rank[ties]+0.5)/len)+qnorm((rank[ties]-0.5)/len))
++   vec[!is.na(vec)] = new.vec
++   vec
++ }
+> 
+> # ----------------------------------------------------------------------
+> # read in data
+> # ----------------------------------------------------------------------
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/BRCA/_data2")
+> 
+> datM = read.table(file = "methylation_mvalue.txt",
++ sep = "\t", header = TRUE, as.is = TRUE)
+> dim(datM)
+[1] 394309    406
+> datM[1:2, 1:5]
+          id     A0SE     A0SF     A0SG     A0SH
+1 cg13869341 1.992940 2.569750 1.868150 2.305290
+2 cg14008030 0.602427 0.429316 0.250666 0.437007
+> 
+> 
+> cDat = read.table(file="cov_EM.txt", sep = "\t",
++ header = TRUE, as.is = TRUE)
+> 
+> dim(cDat)
+[1]  38 406
+> cDat[1:5, 1:5]
+  id A0SE A0SF A0SG A0SH
+1 A2    0    0    0    0
+2 A7    0    0    0    0
+3 A8    0    0    0    0
+4 AC    0    0    0    0
+5 AN    0    0    0    0
+> cDat$id
+ [1] "A2"       "A7"       "A8"       "AC"       "AN"       "AO"      
+ [7] "AQ"       "AR"       "B6"       "BH"       "D8"       "E2"      
+[13] "E9"       "EW"       "GM"       "A084"     "A109"     "A10J"    
+[19] "A12P"     "A137"     "A13Q"     "A144"     "A14D"     "A14M"    
+[25] "A157"     "A169"     "A16F"     "A17B"     "A180"     "A18M"    
+[31] "A19W"     "A213"     "A21T"     "A22K"     "age"      "noHM_PC1"
+[37] "noHM_PC2" "noHM_PC3"
+> 
+> X = data.matrix(t(cDat[, -1]))
+> dim(X)
+[1] 405  38
+> X[1:5, 1:5]
+     [,1] [,2] [,3] [,4] [,5]
+A0SE    0    0    0    0    0
+A0SF    0    0    0    0    0
+A0SG    0    0    0    0    0
+A0SH    0    0    0    0    0
+A0SI    0    0    0    0    0
+> 
+> # ----------------------------------------------------------------------
+> # find wheher some methylation probes have outliers
+> # ----------------------------------------------------------------------
+> 
+> pDat = data.matrix(datM[,-1])
+> dim(pDat)
+[1] 394309    405
+> 
+> # ----------------------------------------------------------------------
+> # (95% - median)/IQR
+> # ----------------------------------------------------------------------
+> 
+> probs = c(0, 0.25, 0.5, 0.75, 1)
+> qs = apply(pDat, 1, quantile, probs = probs, na.rm=TRUE)
+> 
+> dim(qs)
+[1]      5 394309
+> qs = t(qs)
+> qs[1:5,]
+            0%       25%      50%       75%      100%
+[1,]  1.128450  1.797070  2.08979  2.462050  3.415100
+[2,] -0.504006  0.448838  0.67016  0.871031  1.917730
+[3,] -4.335380 -3.562380 -3.25608 -2.927700 -1.741800
+[4,] -4.531820 -1.902570 -1.67298 -1.423700 -0.938963
+[5,] -4.594370 -3.993390 -3.85333 -3.677190 -2.887760
+> 
+> summary(qs)
+       0%              25%               50%                75%          
+ Min.   :-5.917   Min.   :-5.1979   Min.   :-5.06221   Min.   :-4.90093  
+ 1st Qu.:-3.763   1st Qu.:-3.0166   1st Qu.:-2.72716   1st Qu.:-2.34438  
+ Median :-2.330   Median :-0.4951   Median : 0.02775   Median : 0.54799  
+ Mean   :-2.253   Mean   :-0.7496   Mean   :-0.34178   Mean   : 0.06107  
+ 3rd Qu.:-1.037   3rd Qu.: 1.2092   3rd Qu.: 1.72314   3rd Qu.: 2.11499  
+ Max.   : 4.228   Max.   : 4.9794   Max.   : 5.14974   Max.   : 5.32876  
+      100%        
+ Min.   :-4.2707  
+ 1st Qu.: 0.4257  
+ Median : 2.3219  
+ Mean   : 1.6088  
+ 3rd Qu.: 3.1504  
+ Max.   : 5.8611  
+> 
+> IQR = qs[,4] - qs[,2]
+> qs2 = qs[,c(1,5)]
+> 
+> qs2 = (qs2 - qs[,3])/IQR
+> dim(qs2)
+[1] 394309      2
+> qs2[1:2,]
+            0%     100%
+[1,] -1.445668 1.993007
+[2,] -2.781112 2.954976
+> 
+> outlier = apply(abs(qs2), 1, max)
+> 
+> summary(outlier)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+ 0.6563  2.4140  3.2490  4.1550  4.8200 34.5300 
+> 
+> table(outlier > 5)
+
+ FALSE   TRUE 
+302455  91854 
+> table(outlier > 6)
+
+ FALSE   TRUE 
+331205  63104 
+> table(outlier > 7)
+
+ FALSE   TRUE 
+349384  44925 
+> table(outlier > 8)
+
+ FALSE   TRUE 
+361242  33067 
+> table(outlier > 10)
+
+ FALSE   TRUE 
+375277  19032 
+> table(outlier > 15)
+
+ FALSE   TRUE 
+388937   5372 
+> 
+> # ----------------------------------------------------------------------
+> # quantile transform methylation data
+> # ----------------------------------------------------------------------
+> 
+> pDatN = t(apply(pDat, 1, normscore))
+> dim(pDatN)
+[1] 394309    405
+> pDatN[1:2,1:5]
+           A0SE       A0SF       A0SG      A0SH       A0SI
+[1,] -0.2622828  0.8433821 -0.5159185  0.453420 -1.1122984
+[2,] -0.2114805 -0.7500876 -1.2621452 -0.733827 -0.9839845
+> 
+> summary(apply(pDatN, 1, mean, na.rm=T))
+      Min.    1st Qu.     Median       Mean    3rd Qu.       Max. 
+-1.107e-06  0.000e+00  0.000e+00  9.500e-12  0.000e+00  2.175e-06 
+> summary(apply(pDatN, 1, sd, na.rm=T))
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+ 0.9880  0.9884  0.9884  0.9884  0.9884  0.9884 
+> 
+> pDatN = signif(pDatN, 6)
+> 
+> pDatN = data.frame(id=datM$id, pDatN)
+> dim(pDatN)
+[1] 394309    406
+> pDatN[1:2,1:5]
+          id      A0SE      A0SF      A0SG      A0SH
+1 cg13869341 -0.262283  0.843382 -0.515919  0.453420
+2 cg14008030 -0.211481 -0.750088 -1.262150 -0.733827
+> 
+> 
+> write.table(pDatN, file = "methylation_mvalue_qnorm.txt", append = FALSE,
++   quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
+> 
+> q(save="no")
+> proc.time()
+    user   system  elapsed 
+1354.365   94.490 1626.154 

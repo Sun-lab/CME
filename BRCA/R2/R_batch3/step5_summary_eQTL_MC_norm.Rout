@@ -1,0 +1,952 @@
+
+R version 3.4.1 (2017-06-30) -- "Single Candle"
+Copyright (C) 2017 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin15.6.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> library(data.table)
+> library(GenomicRanges)
+Loading required package: stats4
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:parallel’:
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, sd, var, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, append, as.data.frame, cbind, colMeans, colnames,
+    colSums, do.call, duplicated, eval, evalq, Filter, Find, get, grep,
+    grepl, intersect, is.unsorted, lapply, lengths, Map, mapply, match,
+    mget, order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rowMeans, rownames, rowSums, sapply, setdiff, sort,
+    table, tapply, union, unique, unsplit, which, which.max, which.min
+
+Loading required package: S4Vectors
+
+Attaching package: ‘S4Vectors’
+
+The following objects are masked from ‘package:data.table’:
+
+    first, second
+
+The following object is masked from ‘package:base’:
+
+    expand.grid
+
+Loading required package: IRanges
+
+Attaching package: ‘IRanges’
+
+The following object is masked from ‘package:data.table’:
+
+    shift
+
+Loading required package: GenomeInfoDb
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/BRCA/_data2")
+> 
+> # ------------------------------------------------------------------------------
+> # Read in eQTL results.
+> # ------------------------------------------------------------------------------
+> 
+> pvs0 = fread("methylation_vs_cn_with_pam50.txt", header=TRUE)
+Read 86.3% of 1250838 rowsRead 1250838 rows and 6 (of 6) columns from 0.119 GB file in 00:00:03
+> dim(pvs0)
+[1] 1250838       6
+> pvs0[1:2,]
+             SNP       gene       beta    t-stat       p-value           FDR
+1:  LETM2|137994 cg20888907 -0.5824257 -39.20662 3.626000e-132 2.793045e-122
+2: WHSC1L1|54904 cg20888907 -0.5758169 -37.14727 2.200514e-125 8.475088e-116
+> summary(pvs0[["p-value"]])
+     Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+0.000e+00 0.000e+00 4.170e-25 6.493e-22 1.582e-22 1.000e-20 
+> 
+> key0 = paste(pvs0$gene, pvs0$SNP, sep=":")
+> 
+> pvs = fread("methylation_vs_cn_with_pam50_qnorm.txt", header=TRUE)
+Read 31.6% of 1834860 rowsRead 69.8% of 1834860 rowsRead 1834860 rows and 6 (of 6) columns from 0.172 GB file in 00:00:04
+> dim(pvs)
+[1] 1834860       6
+> pvs[1:2,]
+              SNP       gene     beta   t-stat       p-value          FDR
+1:     FGFR1|2260 cg01866148 1.173555 30.14257 1.302587e-100 6.454371e-91
+2: C8orf86|389649 cg01866148 1.246455 30.11321 1.675845e-100 6.454371e-91
+> summary(pvs[["p-value"]])
+     Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+0.000e+00 0.000e+00 3.520e-25 6.329e-22 1.418e-22 1.000e-20 
+> 
+> keys = paste(pvs$gene, pvs$SNP, sep=":")
+> 
+> length(intersect(key0, keys))
+[1] 1212315
+> keyAll = union(key0, keys)
+> length(keyAll)
+[1] 1873383
+> 
+> p0 = p1 = rep(5, length(keyAll))
+> p0[match(key0, keyAll)] = -log10(pvs0[["p-value"]])
+> p1[match(keys, keyAll)] = -log10(pvs[["p-value"]])
+> 
+> png("../figures2/methylation_vs_cn_with_pam50_qnorm_vs_not.png",
++       width=5, height=5, res=400, units="in")
+> par(bty="n", mar=c(5,4,1,1))
+> plot(p0, p1, xlab="-log10(p-value) Untransformed data",
++ ylab="-log10(p-value) normalized data", pch=20,
++ col=rgb(0.8,0.2,0.2,0.5))
+> abline(0, 1, col="grey", lwd=2)
+> dev.off()
+null device 
+          1 
+> 
+> table(pvs[["p-value"]] < 1e-50)
+
+  FALSE    TRUE 
+1818487   16373 
+> table(pvs[["p-value"]] < 1e-60)
+
+  FALSE    TRUE 
+1830850    4010 
+> 
+> # ------------------------------------------------------------------------
+> # files
+> # ------------------------------------------------------------------------
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/BRCA/_data2")
+> 
+> inputs = "methylation_vs_cn_qnorm.txt"
+> inputs = c(inputs, "methylation_vs_cn_with_pam50_qnorm.txt")
+> inputs = c(inputs, "methylation_vs_cn_with_ab_purity_pam50_qnorm.txt")
+> inputs = c(inputs, "methylation_vs_cn_with_pam50_PCs7_qnorm.txt")
+> 
+> inputs
+[1] "methylation_vs_cn_qnorm.txt"                     
+[2] "methylation_vs_cn_with_pam50_qnorm.txt"          
+[3] "methylation_vs_cn_with_ab_purity_pam50_qnorm.txt"
+[4] "methylation_vs_cn_with_pam50_PCs7_qnorm.txt"     
+> 
+> outputs = gsub(".txt", ".png", inputs, fixed=TRUE)
+> 
+> outputs
+[1] "methylation_vs_cn_qnorm.png"                     
+[2] "methylation_vs_cn_with_pam50_qnorm.png"          
+[3] "methylation_vs_cn_with_ab_purity_pam50_qnorm.png"
+[4] "methylation_vs_cn_with_pam50_PCs7_qnorm.png"     
+> 
+> # ------------------------------------------------------------
+> # read in location annotation
+> # ------------------------------------------------------------
+> 
+> infoE = read.table("methylation_info.txt", sep="\t", header=TRUE,
++ as.is=TRUE)
+> dim(infoE)
+[1] 394309      4
+> infoE[1:2,]
+  Composite.Element.REF Gene_Symbol Chromosome Genomic_Coordinate
+1            cg13869341      WASH5P          1              15865
+2            cg14008030      WASH5P          1              18827
+> 
+> table(infoE$Chromosome, useNA="ifany")
+
+    1    10    11    12    13    14    15    16    17    18    19     2    20 
+38242 19826 23592 19786  9777 12319 12483 18028 23465  5021 21102 28054  8658 
+   21    22     3     4     5     6     7     8     9     X     Y  <NA> 
+ 3539  7037 20107 15950 19619 29143 24109 16547  8047  9760    33    65 
+> 
+> infoM = read.table("cn_info.txt", sep="\t", header=TRUE,
++ as.is=TRUE)
+> dim(infoM)
+[1] 19535     8
+> infoM[1:2,]
+            gene geneSymbol geneID  chr   start     end strand         ensembl
+1   PRDM16|63976     PRDM16  63976 chr1 2985744 3355183      + ENSG00000142611
+2 ARHGEF16|27237   ARHGEF16  27237 chr1 3371147 3397675      + ENSG00000130762
+> table(infoM$chr, useNA="ifany")
+
+ chr1 chr10 chr11 chr12 chr13 chr14 chr15 chr16 chr17 chr18 chr19  chr2 chr20 
+ 1912   762  1205  1029   336   644   636   780  1183   265  1393  1255   537 
+chr21 chr22  chr3  chr4  chr5  chr6  chr7  chr8  chr9  chrX 
+  243   423  1097   735   876  1080   952   630   785   777 
+> 
+> # ------------------------------------------------------------------------
+> # read in more detailed methyaltion information
+> # ------------------------------------------------------------------------
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/shared_data/450k")
+> 
+> infMd = read.table("HumanMethylation450_15017482_v1-2_filtered_updated.txt",
++ sep="\t", header=TRUE, as.is=TRUE, quote="")
+> 
+> dim(infMd)
+[1] 393401     22
+> infMd[1:2,]
+        Name Infinium_Design_Type Next_Base Color_Channel Genome_Build CHR
+1 cg00035864                   II                                   37   Y
+2 cg00050873                    I         A           Red           37   Y
+  MAPINFO Strand Random_Loci Methyl27_Loci UCSC_RefGene_Name
+1 8553009      F          NA            NA            TTTY18
+2 9363356      R          NA            NA    TSPY4;FAM197Y2
+  UCSC_RefGene_Accession UCSC_RefGene_Group UCSC_CpG_Islands_Name
+1              NR_001550            TSS1500                      
+2 NM_001164471;NR_001553       Body;TSS1500  chrY:9363680-9363943
+  Relation_to_UCSC_CpG_Island Phantom DMR Enhancer        HMM_Island
+1                                               NA                  
+2                     N_Shore                   NA Y:9973136-9976273
+  Regulatory_Feature_Name Regulatory_Feature_Group DHS
+1                                                   NA
+2                                                   NA
+> 
+> # --------------------------------------------------------------
+> # iteratively summarizing results
+> # --------------------------------------------------------------
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/BRCA/_data2")
+> 
+> source("~/research/TCGA/_Sun_MethyE/shared_code/eQTL_Plot.R")
+> 
+> pvsL = list()
+> 
+> for(i in 1:4){
++   
++   inputi  = inputs[i]
++   outputi = outputs[i]
++   
++   # ------------------------------------------------------------------------
++   # read in eQTL results
++   # ------------------------------------------------------------------------
++   
++   pvs = fread(inputi, header=TRUE)
++   dim(pvs)
++   pvs[1:2,]
++   
++   summary(pvs[["p-value"]])
++   summary(pvs$FDR)
++   
++   table(pvs[["p-value"]] < 1e-30)
++   table(pvs[["p-value"]] < 1e-40)
++   table(pvs[["p-value"]] < 1e-50)
++   table(pvs[["p-value"]] < 1e-60)
++   table(pvs[["p-value"]] < 1e-80)
++ 
++   table(pvs$gene  %in% infMd$Name)
++   pvs = pvs[which(pvs$gene  %in% infMd$Name),]
++   pvsL[[i]] = pvs
++   
++   # ------------------------------------------------------------
++   # plot it after removing those possible problematic probes
++   # ------------------------------------------------------------
++   
++   ptplot   = pvs
++   
++   geneID   = match(ptplot$gene, infoE$Composite.Element.REF)
++   markerID = match(ptplot$SNP,  infoM$gene)
++   scores   = ptplot[["p-value"]]
++   scuts    = c(1e-20, 1e-30, 1e-40, 1e-60)
++   cols     = c("green", "blue", "red", "black")
++   eChr     = infoE$Chromosome
++   ePos     = infoE$Genomic_Coordinate
++   mChr     = gsub("chr", "", infoM$chr)
++   mPos     = 0.5*(infoM$start + infoM$end)
++   chroms   = 1:22
++   
++   outputi1 = sub(".png", "_rm_bad_m.png", outputi, fixed=TRUE)
++   png(sprintf("../figures2/%s", outputi1), width=7.5, height=9,
++   res=200, units="in")
++   
++   eqtl.plot(geneID, markerID, scores, scuts, cols, eChr, ePos, mChr,
++   mPos, chroms, xlab="Methylation Probe Location",
++   ylab="Transcript Location", plot.hotspots=TRUE,
++   hotspots.cut=10, score.type="p-value")
++   
++   dev.off()
++ }
+Read 14.6% of 2536406 rowsRead 39.4% of 2536406 rowsRead 64.3% of 2536406 rowsRead 89.1% of 2536406 rowsRead 2536406 rows and 6 (of 6) columns from 0.238 GB file in 00:00:06
+Read 56.1% of 1834860 rowsRead 91.6% of 1834860 rowsRead 1834860 rows and 6 (of 6) columns from 0.172 GB file in 00:00:04
+Read 67.9% of 1709494 rowsRead 1709494 rows and 6 (of 6) columns from 0.161 GB file in 00:00:03
+Read 50.6% of 1935036 rowsRead 83.7% of 1935036 rowsRead 1935036 rows and 6 (of 6) columns from 0.182 GB file in 00:00:04
+> 
+> # --------------------------------------------------------------
+> # check the intersection
+> # --------------------------------------------------------------
+> 
+> scuts = c(1e-20, 1e-30, 1e-40, 1e-50, 1e-60)
+> 
+> eMC2 = pvsL[[2]]
+> eMC3 = pvsL[[3]]
+> 
+> dim(eMC2)
+[1] 1522695       6
+> dim(eMC3)
+[1] 1418371       6
+> eMC2[1:2,]
+              SNP       gene     beta   t-stat       p-value          FDR
+1:     FGFR1|2260 cg01866148 1.173555 30.14257 1.302587e-100 6.454371e-91
+2: C8orf86|389649 cg01866148 1.246455 30.11321 1.675845e-100 6.454371e-91
+> eMC3[1:2,]
+              SNP       gene     beta   t-stat      p-value          FDR
+1:     FGFR1|2260 cg01866148 1.172737 29.87966 1.631866e-99 8.005138e-90
+2: C8orf86|389649 cg01866148 1.245378 29.85152 2.078494e-99 8.005138e-90
+> 
+> key2 = paste(eMC2$SNP, eMC2$gene, sep=":")
+> key3 = paste(eMC3$SNP, eMC3$gene, sep=":")
+> 
+> ns = matrix(nrow=length(scuts), ncol=5)
+> 
+> for(i in 1:length(scuts)){
++   s1 = scuts[i]
++   
++   key2s = key2[which(eMC2[["p-value"]] < s1)]
++   key3s = key3[which(eMC3[["p-value"]] < s1)]
++   key4s = key3[which(eMC3[["p-value"]] < s1*100)]
++   
++   ns[i,1] = length(key2s)
++   ns[i,2] = length(key3s)
++   ns[i,3] = length(key4s)
++   
++   ns[i,4] = length(intersect(key2s, key3s))
++   ns[i,5] = length(intersect(key2s, key4s))
++ }
+> 
+> ns
+        [,1]    [,2]    [,3]    [,4]    [,5]
+[1,] 1522695 1418371 1418371 1362714 1362714
+[2,]  328192  296107  403381  288900  321112
+[3,]   68254   59488   82164   58474   66397
+[4,]   13768   12121   16435   11976   13398
+[5,]    3498    3216    4047    3164    3440
+> ns/ns[,1]
+     [,1]      [,2]      [,3]      [,4]      [,5]
+[1,]    1 0.9314873 0.9314873 0.8949356 0.8949356
+[2,]    1 0.9022371 1.2291006 0.8802774 0.9784273
+[3,]    1 0.8715680 1.2037976 0.8567117 0.9727928
+[4,]    1 0.8803748 1.1937101 0.8698431 0.9731261
+[5,]    1 0.9193825 1.1569468 0.9045169 0.9834191
+> 
+> # --------------------------------------------------------------
+> # check the hot spot at chromosome 16
+> # --------------------------------------------------------------
+> 
+> pvs = pvsL[[2]]
+> dim(pvs)
+[1] 1522695       6
+> pvs[1:5,]
+              SNP       gene      beta    t-stat       p-value          FDR
+1:     FGFR1|2260 cg01866148  1.173555  30.14257 1.302587e-100 6.454371e-91
+2: C8orf86|389649 cg01866148  1.246455  30.11321 1.675845e-100 6.454371e-91
+3:   LETM2|137994 cg01866148  1.151851  29.11725  9.195385e-97 2.361015e-87
+4:  WHSC1L1|54904 cg23730244 -1.135114 -28.90563  5.818648e-96 1.120501e-86
+5:   LETM2|137994 cg20888907 -1.154487 -28.85403  9.132127e-96 1.406864e-86
+> 
+> cpgID     = match(pvs$gene, infoE$Composite.Element.REF)
+> geneID    = match(pvs$SNP,  infoM$gene)
+> pvs$mChr  = infoE$Chromosome[cpgID]
+> pvs$mPos  = infoE$Genomic_Coordinate[cpgID]
+> pvs$mGene = infoE$Gene_Symbol[cpgID]
+> pvs$eChr  = gsub("chr", "", infoM$chr)[geneID]
+> pvs$ePos  = 0.5*(infoM$start + infoM$end)[geneID]
+> 
+> dim(pvs)
+[1] 1522695      11
+> pvs[1:5,]
+              SNP       gene      beta    t-stat       p-value          FDR
+1:     FGFR1|2260 cg01866148  1.173555  30.14257 1.302587e-100 6.454371e-91
+2: C8orf86|389649 cg01866148  1.246455  30.11321 1.675845e-100 6.454371e-91
+3:   LETM2|137994 cg01866148  1.151851  29.11725  9.195385e-97 2.361015e-87
+4:  WHSC1L1|54904 cg23730244 -1.135114 -28.90563  5.818648e-96 1.120501e-86
+5:   LETM2|137994 cg20888907 -1.154487 -28.85403  9.132127e-96 1.406864e-86
+   mChr     mPos    mGene eChr     ePos
+1:    8 38306034    FGFR1    8 38297504
+2:    8 38306034    FGFR1    8 38377266
+3:    8 38306034    FGFR1    8 38255040
+4:    8 38126978 PPAPDC1B    8 38186176
+5:    8 38244244    LETM2    8 38255040
+> 
+> w2check = which(pvs$eChr=="17" & pvs$mChr != "17")
+> length(w2check)
+[1] 1178
+> 
+> w2check = which(pvs$eChr=="16" & pvs$mChr != "16")
+> length(w2check)
+[1] 19320
+> 
+> pvs2chk = pvs[w2check,]
+> dim(pvs2chk)
+[1] 19320    11
+> pvs2chk[1:50,-(3:5)]
+                SNP       gene          FDR mChr     mPos mGene eChr     ePos
+ 1:   RANBP10|57610 cg22385764 6.066421e-34   12 48551594  ASB8   16 67798780
+ 2:   KCTD19|146212 cg22385764 1.097260e-33   12 48551594  ASB8   16 67342027
+ 3:    LRRC36|55282 cg22385764 1.097260e-33   12 48551594  ASB8   16 67389928
+ 4:     TPPP3|51673 cg22385764 1.097260e-33   12 48551594  ASB8   16 67425568
+ 5:    ZDHHC1|29800 cg22385764 1.097260e-33   12 48551594  ASB8   16 67439331
+ 6:    HSD11B2|3291 cg22385764 1.097260e-33   12 48551594  ASB8   16 67468244
+ 7:   ATP6V0D1|9114 cg22385764 1.097260e-33   12 48551594  ASB8   16 67493503
+ 8:        AGRP|181 cg22385764 1.097260e-33   12 48551594  ASB8   16 67517095
+ 9:   TMEM208|29100 cg22385764 1.719041e-33   12 48551594  ASB8   16 67262099
+10:     FHOD1|29109 cg22385764 1.719041e-33   12 48551594  ASB8   16 67272360
+11:     SLC9A5|6553 cg22385764 1.719041e-33   12 48551594  ASB8   16 67294474
+12:   PLEKHG4|25894 cg22385764 1.719041e-33   12 48551594  ASB8   16 67317408
+13:    RLTPR|146206 cg22385764 2.036101e-33   12 48551594  ASB8   16 67685250
+14:       ACD|65057 cg22385764 2.036101e-33   12 48551594  ASB8   16 67693067
+15:    PARD6A|50855 cg22385764 2.036101e-33   12 48551594  ASB8   16 67695766
+16:  C16orf48|84080 cg22385764 2.036101e-33   12 48551594  ASB8   16 67698739
+17: C16orf86|388284 cg22385764 2.036101e-33   12 48551594  ASB8   16 67701688
+18:     GFOD2|81577 cg22385764 2.278838e-33   12 48551594  ASB8   16 67730855
+19:    FAM65A|79567 cg22385764 2.557606e-33   12 48551594  ASB8   16 67571721
+20:      CTCF|10664 cg22385764 2.557606e-33   12 48551594  ASB8   16 67634776
+21:      CKLF|51192 cg22385764 2.908831e-33   12 48551594  ASB8   16 66593310
+22:    CMTM1|113540 cg22385764 2.908831e-33   12 48551594  ASB8   16 66606665
+23:    CMTM2|146225 cg22385764 2.908831e-33   12 48551594  ASB8   16 66617763
+24:    CMTM3|123920 cg22385764 2.908831e-33   12 48551594  ASB8   16 66642998
+25:    CMTM4|146223 cg22385764 2.908831e-33   12 48551594  ASB8   16 66689632
+26:   DYNC1LI2|1783 cg22385764 2.908831e-33   12 48551594  ASB8   16 66770162
+27:   CCDC79|283847 cg22385764 2.908831e-33   12 48551594  ASB8   16 66812202
+28:       NAE1|8883 cg22385764 2.908831e-33   12 48551594  ASB8   16 66850830
+29:         CA7|766 cg22385764 2.908831e-33   12 48551594  ASB8   16 66883164
+30:      PDP2|57546 cg22385764 2.908831e-33   12 48551594  ASB8   16 66918146
+31:      CDH16|1014 cg22385764 2.908831e-33   12 48551594  ASB8   16 66947396
+32:       RRAD|6236 cg22385764 2.908831e-33   12 48551594  ASB8   16 66957510
+33:    FAM96B|51647 cg22385764 2.908831e-33   12 48551594  ASB8   16 66967140
+34:       CES2|8824 cg22385764 2.908831e-33   12 48551594  ASB8   16 66973670
+35:     CENPT|80152 cg22385764 4.928871e-33   12 48551594  ASB8   16 67871712
+36:    THAP11|57215 cg22385764 4.928871e-33   12 48551594  ASB8   16 67877155
+37:     NUTF2|10204 cg22385764 4.928871e-33   12 48551594  ASB8   16 67893629
+38:      EDC4|23644 cg22385764 4.928871e-33   12 48551594  ASB8   16 67913634
+39:    NRN1L|123904 cg22385764 4.928871e-33   12 48551594  ASB8   16 67919526
+40:      PSKH1|5681 cg22385764 4.928871e-33   12 48551594  ASB8   16 67945378
+41:       CTRL|1506 cg22385764 4.928871e-33   12 48551594  ASB8   16 67964620
+42:     PSMB10|5699 cg22385764 4.928871e-33   12 48551594  ASB8   16 67969580
+43:      CES3|23491 cg22385764 5.317365e-33   12 48551594  ASB8   16 67002094
+44:     CES8|283848 cg22385764 5.317365e-33   12 48551594  ASB8   16 67033145
+45:        CBFB|865 cg22385764 5.317365e-33   12 48551594  ASB8   16 67099003
+46:  C16orf70|80262 cg22385764 5.317365e-33   12 48551594  ASB8   16 67163153
+47:        TK2|7084 cg22385764 5.576492e-33   12 48551594  ASB8   16 66563834
+48:    B3GNT9|84752 cg22385764 7.756790e-33   12 48551594  ASB8   16 67183454
+49:      TRADD|8717 cg22385764 7.756790e-33   12 48551594  ASB8   16 67190950
+50:     FBXL8|55336 cg22385764 7.756790e-33   12 48551594  ASB8   16 67195984
+                SNP       gene          FDR mChr     mPos mGene eChr     ePos
+> 
+> sort(table(pvs2chk$mGene), decreasing=TRUE)[1:50]
+
+                  BTBD3       AP1M2      LY6G6E      ZNF575       USP42 
+       2630         610         608         604         530         416 
+      EHMT2        TLN1        ASB8       RRP15       RAB25      TMBIM6 
+        316         315         312         311         308         308 
+      PHF15       USP48       ACIN1        SLA2     C4orf21        FHIT 
+        306         306         305         305         304         304 
+    PLEKHA6       TPD52       CAPN1      NIF3L1        SBF1       LOXL1 
+        304         304         299         294         293         288 
+      GIPC1      RNF216      SNAPC5       PIAS3        DGKZ       WDR77 
+        279         275         269         266         252         245 
+EME1;LRRC59   LOC729080       MLXIP      ACTR1A       KCNQ5     SPATA20 
+        243         241         233         230         225         225 
+     UNC13D        CLPB       TAOK3      TRIP13       PARVA        ERI3 
+        218         213         209         209         206         205 
+     MRPS11       STX1A        EDC3      SFMBT1      BAT2L1      NBEAL2 
+        201         198         184         183         159         157 
+     ZCWPW1     CXorf15 
+        150         147 
+> sort(table(pvs2chk$SNP), decreasing=TRUE)[1:50]
+
+     BEAN|146227        CDH5|1003          CA7|766    CCDC79|283847 
+             102              102              101              101 
+      CDH16|1014        CES2|8824       CKLF|51192     CMTM1|113540 
+             101              101              101              101 
+    CMTM2|146225     CMTM3|123920     CMTM4|146223    DYNC1LI2|1783 
+             101              101              101              101 
+    FAM96B|51647        NAE1|8883       PDP2|57546        RRAD|6236 
+             101              101              101              101 
+        TK2|7084         AGRP|181    ATP6V0D1|9114     HSD11B2|3291 
+             100               98               98               98 
+   KCTD19|146212     LRRC36|55282      TPPP3|51673     ZDHHC1|29800 
+              98               98               98               98 
+      CDH11|1009 LOC283867|283867        ACD|65057   C16orf48|84080 
+              97               97               96               96 
+  C16orf70|80262  C16orf86|388284         CBFB|865       CES3|23491 
+              96               96               96               96 
+     CES8|283848       CTCF|10664     FAM65A|79567      GFOD2|81577 
+              96               96               96               96 
+    PARD6A|50855     RLTPR|146206      FHOD1|29109    PLEKHG4|25894 
+              96               96               92               92 
+     SLC9A5|6553    TMEM208|29100     B3GNT9|84752        E2F4|1874 
+              92               92               89               89 
+     ELMO3|79767    EXOC3L|283849      FBXL8|55336        HSF4|3299 
+              89               89               89               89 
+KIAA0895L|653319     LRRC29|26231 
+              89               89 
+> 
+> tt1 = table(pvs2chk$SNP)
+> gene2check = names(tt1)[which(tt1 > 90)]
+> length(gene2check)
+[1] 42
+> 
+> geneSyms   = infoM$geneSymbol[match(gene2check, infoM$gene)]
+> cat(geneSyms, sep="\n")
+ACD
+AGRP
+ATP6V0D1
+BEAN
+C16orf48
+C16orf70
+C16orf86
+CA7
+CBFB
+CCDC79
+CDH11
+CDH16
+CDH5
+CES2
+CES3
+CES8
+CKLF
+CMTM1
+CMTM2
+CMTM3
+CMTM4
+CTCF
+DYNC1LI2
+FAM65A
+FAM96B
+FHOD1
+GFOD2
+HSD11B2
+KCTD19
+LOC283867
+LRRC36
+NAE1
+PARD6A
+PDP2
+PLEKHG4
+RLTPR
+RRAD
+SLC9A5
+TK2
+TMEM208
+TPPP3
+ZDHHC1
+> 
+> # ------------------------------------------------------------------------------
+> # Read in results of SCNA vs. gene expression associations
+> # ------------------------------------------------------------------------------
+> 
+> pvsEC = fread("expression_vs_cn_with_pam50_qnorm.txt", header=TRUE)
+> dim(pvsEC)
+[1] 864918      6
+> pvsEC[1:2,]
+            SNP          gene     beta   t-stat       p-value           FDR
+1:  MAK16|84549 C8orf41|80185 1.995784 33.64588 2.468876e-113 7.627976e-105
+2: GOLGA7|51125  GOLGA7|51125 1.673574 33.29316 4.396770e-112 6.792253e-104
+> 
+> table(pvsEC$SNP == pvsEC$gene)
+
+ FALSE   TRUE 
+859307   5611 
+> pvsEC = pvsEC[which(pvsEC$SNP == pvsEC$gene),]
+> dim(pvsEC)
+[1] 5611    6
+> pvsEC[1:2,]
+            SNP         gene     beta   t-stat       p-value           FDR
+1: GOLGA7|51125 GOLGA7|51125 1.673574 33.29316 4.396770e-112 6.792253e-104
+2:   ASH2L|9070   ASH2L|9070 1.247427 32.74765 3.897328e-110 1.963635e-102
+> 
+> summary(pvsEC[["p-value"]])
+     Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+0.000e+00 0.000e+00 0.000e+00 1.869e-22 3.000e-27 9.771e-21 
+> 
+> eID       = match(pvsEC$SNP,  infoM$gene)
+> pvsEC$Chr  = gsub("chr", "", infoM$chr)[eID]
+> pvsEC$Pos  = 0.5*(infoM$start + infoM$end)[eID]
+> dim(pvsEC)
+[1] 5611    8
+> pvsEC[1:2,]
+            SNP         gene     beta   t-stat       p-value           FDR Chr
+1: GOLGA7|51125 GOLGA7|51125 1.673574 33.29316 4.396770e-112 6.792253e-104   8
+2:   ASH2L|9070   ASH2L|9070 1.247427 32.74765 3.897328e-110 1.963635e-102   8
+        Pos
+1: 41358289
+2: 37980119
+> 
+> wEC = which(pvsEC$Chr=="16")
+> length(wEC)
+[1] 342
+> 
+> pvsEC2chk = pvsEC[wEC,]
+> dim(pvsEC2chk)
+[1] 342   8
+> 
+> table(gene2check %in% pvsEC2chk$gene)
+
+FALSE  TRUE 
+   27    15 
+> pvsEC2chk[which(pvsEC2chk$gene %in% gene2check),]
+               SNP           gene     beta   t-stat      p-value          FDR
+ 1:  DYNC1LI2|1783  DYNC1LI2|1783 2.830749 24.48587 1.021092e-78 1.982918e-73
+ 2:  ATP6V0D1|9114  ATP6V0D1|9114 2.518292 19.38589 6.918618e-58 1.111431e-53
+ 3:      NAE1|8883      NAE1|8883 2.184462 19.35382 9.390183e-58 1.484299e-53
+ 4:     CTCF|10664     CTCF|10664 2.395912 17.49326 4.617066e-50 3.199826e-46
+ 5: C16orf70|80262 C16orf70|80262 2.458243 17.39753 1.145970e-49 7.602047e-46
+ 6:       CBFB|865       CBFB|865 2.129044 16.86621 1.765361e-47 9.249061e-44
+ 7:    GFOD2|81577    GFOD2|81577 2.280966 16.03595 4.457132e-44 1.633784e-40
+ 8:      CES2|8824      CES2|8824 2.238855 15.77814 5.014774e-43 1.648448e-39
+ 9:   FAM96B|51647   FAM96B|51647 2.094022 15.47766 8.347182e-42 2.410453e-38
+10:  TMEM208|29100  TMEM208|29100 2.052672 14.05271 4.383492e-36 6.951506e-33
+11:      ACD|65057      ACD|65057 2.010200 14.04304 4.788200e-36 7.560709e-33
+12:     PDP2|57546     PDP2|57546 1.960514 13.35682 2.399938e-33 2.868043e-30
+13:   FAM65A|79567   FAM65A|79567 1.969626 12.92652 1.123993e-31 1.137060e-28
+14:     CKLF|51192     CKLF|51192 1.994391 12.91311 1.266255e-31 1.274898e-28
+15:       TK2|7084       TK2|7084 1.694175 11.98401 4.348276e-28 3.094435e-25
+    Chr      Pos
+ 1:  16 66770162
+ 2:  16 67493503
+ 3:  16 66850830
+ 4:  16 67634776
+ 5:  16 67163153
+ 6:  16 67099003
+ 7:  16 67730855
+ 8:  16 66973670
+ 9:  16 66967140
+10:  16 67262099
+11:  16 67693067
+12:  16 66918146
+13:  16 67571721
+14:  16 66593310
+15:  16 66563834
+> 
+> # ------------------------------------------------------------------------------
+> # Read in SCNA data and methylation data.
+> # ------------------------------------------------------------------------------
+> 
+> datC = read.table(file = "cn_values.txt", sep = "\t",
++                   header = TRUE, as.is = TRUE)
+> dim(datC)
+[1] 19535   406
+> datC[1:2, 1:5]
+              id    A0SE    A0SF    A0SG    A0SH
+1   PRDM16|63976 -0.0313 -0.0562 -0.0051 -0.3264
+2 ARHGEF16|27237 -0.0313 -0.0562 -0.0051 -0.3264
+> 
+> datM = fread(file = "methylation_mvalue_qnorm.txt")
+Read 0.0% of 394309 rowsRead 10.1% of 394309 rowsRead 20.3% of 394309 rowsRead 30.4% of 394309 rowsRead 40.6% of 394309 rowsRead 50.7% of 394309 rowsRead 60.9% of 394309 rowsRead 71.0% of 394309 rowsRead 81.2% of 394309 rowsRead 91.3% of 394309 rowsRead 394309 rows and 406 (of 406) columns from 1.369 GB file in 00:00:19
+> dim(datM)
+[1] 394309    406
+> datM[1:2, 1:5]
+           id      A0SE      A0SF      A0SG      A0SH
+1: cg13869341 -0.262283  0.843382 -0.515919  0.453420
+2: cg14008030 -0.211481 -0.750088 -1.262150 -0.733827
+> 
+> table(names(datC) == names(datM))
+
+TRUE 
+ 406 
+> 
+> # datM is too big to do analysis below; restrict to only the relevant probes.
+> probes_to_keep = unique(pvs2chk$gene)
+> 
+> dim(pvs2chk)
+[1] 19320    11
+> length(probes_to_keep)
+[1] 134
+> 
+> dim(datM)
+[1] 394309    406
+> datM = datM[which(datM$id %in% probes_to_keep), ]
+> dim(datM)
+[1] 134 406
+> 
+> pvs2chk = pvs2chk[order(pvs2chk[["p-value"]]),]
+> dim(pvs2chk)
+[1] 19320    11
+> pvs2chk[1:5,]
+             SNP       gene      beta    t-stat      p-value          FDR mChr
+1: RANBP10|57610 cg22385764 -1.814423 -14.72994 8.702593e-39 6.066421e-34   12
+2: KCTD19|146212 cg22385764 -1.835810 -14.66085 1.647480e-38 1.097260e-33   12
+3:  LRRC36|55282 cg22385764 -1.835810 -14.66085 1.647480e-38 1.097260e-33   12
+4:   TPPP3|51673 cg22385764 -1.835810 -14.66085 1.647480e-38 1.097260e-33   12
+5:  ZDHHC1|29800 cg22385764 -1.835810 -14.66085 1.647480e-38 1.097260e-33   12
+       mPos mGene eChr     ePos
+1: 48551594  ASB8   16 67798780
+2: 48551594  ASB8   16 67342027
+3: 48551594  ASB8   16 67389928
+4: 48551594  ASB8   16 67425568
+5: 48551594  ASB8   16 67439331
+> 
+> cn1 = as.numeric(datC[which(datC$id == "RANBP10|57610"),-1])
+> me1 = as.numeric(datM[which(datM$id == "cg22385764"),-1])
+> 
+> 
+> # ------------------------------------------------------------------------------
+> # check those CpG's
+> # ------------------------------------------------------------------------------
+> 
+> dim(pvs2chk)
+[1] 19320    11
+> pvs2chk[1:2,]
+             SNP       gene      beta    t-stat      p-value          FDR mChr
+1: RANBP10|57610 cg22385764 -1.814423 -14.72994 8.702593e-39 6.066421e-34   12
+2: KCTD19|146212 cg22385764 -1.835810 -14.66085 1.647480e-38 1.097260e-33   12
+       mPos mGene eChr     ePos
+1: 48551594  ASB8   16 67798780
+2: 48551594  ASB8   16 67342027
+> summary(pvs2chk[["p-value"]])
+     Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+0.000e+00 2.800e-26 9.577e-24 8.832e-22 5.241e-22 9.996e-21 
+> 
+> cpgs = unique(pvs2chk$gene)
+> length(cpgs)
+[1] 134
+> 
+> dim(infMd)
+[1] 393401     22
+> infMd[1:2,]
+        Name Infinium_Design_Type Next_Base Color_Channel Genome_Build CHR
+1 cg00035864                   II                                   37   Y
+2 cg00050873                    I         A           Red           37   Y
+  MAPINFO Strand Random_Loci Methyl27_Loci UCSC_RefGene_Name
+1 8553009      F          NA            NA            TTTY18
+2 9363356      R          NA            NA    TSPY4;FAM197Y2
+  UCSC_RefGene_Accession UCSC_RefGene_Group UCSC_CpG_Islands_Name
+1              NR_001550            TSS1500                      
+2 NM_001164471;NR_001553       Body;TSS1500  chrY:9363680-9363943
+  Relation_to_UCSC_CpG_Island Phantom DMR Enhancer        HMM_Island
+1                                               NA                  
+2                     N_Shore                   NA Y:9973136-9976273
+  Regulatory_Feature_Name Regulatory_Feature_Group DHS
+1                                                   NA
+2                                                   NA
+> 
+> table(cpgs %in% infMd$Name)
+
+TRUE 
+ 134 
+> wCpg = which(infMd$Name %in% cpgs)
+> length(wCpg)
+[1] 134
+> 
+> table(infMd$DHS, useNA="ifany")
+
+  TRUE   <NA> 
+ 49883 343518 
+> table(infMd$DHS[wCpg], useNA="ifany")
+
+TRUE <NA> 
+  54   80 
+> 
+> cpg16 = infMd$Name %in% cpgs
+> c1 = chisq.test(!is.na(infMd$DHS), cpg16)
+> c1
+
+	Pearson's Chi-squared test with Yates' continuity correction
+
+data:  !is.na(infMd$DHS) and cpg16
+X-squared = 89.869, df = 1, p-value < 2.2e-16
+
+> round(c1$expected)
+                 cpg16
+!is.na(infMd$DHS)  FALSE TRUE
+            FALSE 343401  117
+            TRUE   49866   17
+> c1$observed
+                 cpg16
+!is.na(infMd$DHS)  FALSE   TRUE
+            FALSE 343438     80
+            TRUE   49829     54
+> 
+> table(infMd$Relation_to_UCSC_CpG_Island, useNA="ifany")
+
+         Island N_Shelf N_Shore S_Shelf S_Shore 
+ 137817  125053   19922   52101   17862   40646 
+> table(infMd$Relation_to_UCSC_CpG_Island[wCpg], useNA="ifany")
+
+         Island N_Shelf N_Shore S_Shelf S_Shore 
+     82      15      14       3      10      10 
+> 
+> c2 = chisq.test(infMd$Relation_to_UCSC_CpG_Island, cpg16)
+> c2
+
+	Pearson's Chi-squared test
+
+data:  infMd$Relation_to_UCSC_CpG_Island and cpg16
+X-squared = 67.592, df = 5, p-value = 3.246e-13
+
+> round(c2$expected)
+         cpg16
+           FALSE TRUE
+          137770   47
+  Island  125010   43
+  N_Shelf  19915    7
+  N_Shore  52083   18
+  S_Shelf  17856    6
+  S_Shore  40632   14
+> c2$observed
+         cpg16
+           FALSE   TRUE
+          137735     82
+  Island  125038     15
+  N_Shelf  19908     14
+  N_Shore  52098      3
+  S_Shelf  17852     10
+  S_Shore  40636     10
+> 
+> # ------------------------------------------------------------------------------
+> # read in CTCF binding sites
+> # ------------------------------------------------------------------------------
+> 
+> info.cpg16 = infMd[cpg16, c("Name", "CHR", "MAPINFO", "MAPINFO")]
+> dim(info.cpg16)
+[1] 134   4
+> info.cpg16[1:2,]
+            Name CHR  MAPINFO MAPINFO.1
+7272  cg17876277   X 16854696  16854696
+20257 cg06707403   1 11985681  11985681
+> names(info.cpg16) = c("name", "chr", "start", "end")
+> info.cpg16$chr = paste0("chr", info.cpg16$chr)
+> 
+> dim(info.cpg16)
+[1] 134   4
+> info.cpg16[1:2,]
+            name  chr    start      end
+7272  cg17876277 chrX 16854696 16854696
+20257 cg06707403 chr1 11985681 11985681
+> 
+> gr1 = makeGRangesFromDataFrame(info.cpg16, ignore.strand=TRUE)
+> gr1
+GRanges object with 134 ranges and 0 metadata columns:
+         seqnames                 ranges strand
+            <Rle>              <IRanges>  <Rle>
+    7272     chrX [ 16854696,  16854696]      *
+   20257     chr1 [ 11985681,  11985681]      *
+   21873     chr1 [ 22029963,  22029963]      *
+   22485     chr1 [160967582, 160967582]      *
+   22937     chr1 [ 44119109,  44119109]      *
+     ...      ...                    ...    ...
+  376886    chr20   [11898531, 11898531]      *
+  377916    chr20   [35241157, 35241157]      *
+  387080    chr22   [50895351, 50895351]      *
+  390315    chr22   [40420987, 40420987]      *
+  391778    chr22   [19958201, 19958201]      *
+  -------
+  seqinfo: 19 sequences from an unspecified genome; no seqlengths
+> 
+> fun1 <- function(x) sum(width(reduce(x, ignore.strand=T)))
+> fun1(gr1)
+[1] 134
+> 
+> setwd("~/research/data/CTCF/")
+> 
+> ff1  = "CTCFBSDB_all_exp_sites_Sept12_2012_hg19_loci.bed"
+> ctcf = fread(ff1)
+> dim(ctcf)
+[1] 10453868        3
+> ctcf[1:5,]
+     V1      V2      V3
+1: chr8 8594416 8594835
+2: chr8 8558966 8559379
+3: chr8 8567848 8568138
+4: chr8 7922833 7923002
+5: chr8 8527226 8527499
+> 
+> table(ctcf$chr)
+< table of extent 0 >
+> table(info.cpg16$chr)
+
+ chr1 chr10 chr11 chr12 chr14 chr15 chr17 chr19  chr2 chr20 chr22  chr3  chr4 
+   20     2    12    11     5     7     9    10    10     4     3     6     4 
+ chr5  chr6  chr7  chr8  chr9  chrX 
+    6     9     8     5     2     1 
+> 
+> names(ctcf) = c("chr", "start", "end")
+> 
+> lens = ctcf$end - ctcf$start + 1
+> pdf("CTCFBS_len_hist.pdf", width=6, height=4)
+> par(mar=c(5,4,1,1), bty="n")
+> hist(log10(lens), xlab="log10(CTCF BS length)", main="", breaks=100)
+> abline(v=log10(350))
+> dev.off()
+null device 
+          1 
+> 
+> sum(lens)
+[1] 3731826159
+> table(lens < 500)
+
+  FALSE    TRUE 
+ 750246 9703622 
+> table(lens < 400)
+
+  FALSE    TRUE 
+1052232 9401636 
+> table(lens < 350)
+
+  FALSE    TRUE 
+1317830 9136038 
+> 
+> sum(lens)
+[1] 3731826159
+> sum(lens[which(lens < 350)])
+[1] 1525108319
+> 
+> gr2 = makeGRangesFromDataFrame(ctcf, ignore.strand=TRUE, seqnames.field="chr",
++                                start.field="start", end.field="end")
+> 
+> gr3 = makeGRangesFromDataFrame(ctcf[which(lens < 350),], ignore.strand=TRUE, 
++                                seqnames.field="chr",
++                                start.field="start", end.field="end")
+> 
+> width2 = fun1(gr2)
+> width3 = fun1(gr3)
+> width2
+[1] 933006487
+> width3
+[1] 176720686
+> 
+> prp2 = width2/(3234.83*10^6)
+> prp3 = width3/(3234.83*10^6)
+> prp2
+[1] 0.2884252
+> prp3
+[1] 0.05463059
+> 
+> mtch2 = findOverlaps(gr1, gr2, select="first")
+> table(!is.na(mtch2))
+
+FALSE  TRUE 
+   11   123 
+> 
+> mtch3 = findOverlaps(gr1, gr3, select="first")
+> table(!is.na(mtch3))
+
+FALSE  TRUE 
+   14   120 
+> 
+> pbinom(134, 123-1, prp2, lower.tail=FALSE, log.p=TRUE)
+[1] -Inf
+> pbinom(134, 120-1, prp3, lower.tail=FALSE, log.p=TRUE)
+[1] -Inf
+> 
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+337.099  11.548 354.674 

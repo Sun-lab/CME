@@ -1,0 +1,1037 @@
+
+R version 3.1.0 (2014-04-10) -- "Spring Dance"
+Copyright (C) 2014 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin13.1.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> require(gplots)
+Loading required package: gplots
+
+Attaching package: ‘gplots’
+
+The following object is masked from ‘package:stats’:
+
+    lowess
+
+Warning message:
+package ‘gplots’ was built under R version 3.1.3 
+> 
+> # ------------------------------------------------------------
+> # read in the information of the samples to be used
+> # ------------------------------------------------------------
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/BRCA")
+> 
+> ff0    = "_data2/patient_brca_female_Caucasian_EMC_info_absolute.txt"
+> emInfo = read.table(ff0, sep = "\t", header = TRUE, as.is=TRUE)
+> dim(emInfo)
+[1] 405  24
+> emInfo[1,]
+  bcr_patient_barcode patient_id tissue_source_site birth_days_to
+1        TCGA-A1-A0SE       A0SE                 A1        -20717
+  last_contact_days_to    death_days_to vital_status
+1                 1321 [Not Applicable]        Alive
+  ajcc_pathologic_tumor_stage tumor_status age_at_diagnosis
+1                     Stage I   TUMOR FREE               56
+           methylation_barcode
+1 TCGA-A1-A0SE-01A-11D-A10P-05
+                                                               methylation_file
+1 jhu-usc.edu_BRCA.HumanMethylation450.4.lvl-3.TCGA-A1-A0SE-01A-11D-A10P-05.txt
+            expression_barcode
+1 TCGA-A1-A0SE-01A-11R-A084-07
+                                                          expression_file
+1 unc.edu.a998e0ce-9248-460f-aabc-2dad452a1ff9.1153763.rsem.genes.results
+                    cn_barcode
+1 TCGA-A1-A0SE-01A-11D-A087-01
+                                                              cn_file abs_call
+1 SHAWM_p_TCGAb72_SNP_N_GenomeWideSNP_6_D12_698000.nocnv_hg19.seg.txt   called
+  abs_purity abs_ploidy abs_doublings pam50    noHM_PC1     noHM_PC2
+1        0.3       4.07             1  LumA 0.008748328 -0.008863467
+     noHM_PC3
+1 -0.05572216
+> 
+> # ------------------------------------------------------------
+> # read in copy number data
+> # ------------------------------------------------------------
+> 
+> datC = read.table(file = "CNV_SNP_Array/cn_data.txt", sep = "\t",
++                   header = TRUE, as.is=TRUE)
+> dim(datC)
+[1] 19662   502
+> datC[1:2,1:5]
+               AAAU    AAAK   A0SB    A0SE    A0SF
+CPA1|1357    0.2734  0.0120 0.0041  0.0127  0.1885
+GUCY2D|3000 -0.3511 -0.5726 0.0006 -0.4134 -0.3536
+> 
+> length(unique(names(datC)))
+[1] 502
+> table(emInfo$patient_id %in% names(datC))
+
+TRUE 
+ 405 
+> 
+> datC = datC[,match(emInfo$patient_id, names(datC))]
+> names(datC) = emInfo$patient_id
+> 
+> dim(datC)
+[1] 19662   405
+> datC[1:2,1:5]
+               A0SE    A0SF    A0SG    A0SH    A0SI
+CPA1|1357    0.0127  0.1885 -0.0077  0.0283  0.1005
+GUCY2D|3000 -0.4134 -0.3536  0.0061 -0.3774 -0.3798
+> 
+> # ------------------------------------------------------------
+> # remove probes with many NAs and summary mean/sds
+> # ------------------------------------------------------------
+> 
+> nna  = rowSums(is.na(datC))
+> summary(nna)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+ 0.0000  0.0000  0.0000  0.5167  0.0000 84.0000 
+> table(nna[nna > 0])
+
+  1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  18  20  21  24  25 
+617 268 127  73  44  59  51   4 111  21   3  11  13  95  14   1   8   1  51   3 
+ 26  29  33  37  41  49  52  84 
+ 33   1   1   3   2  28   1   3 
+> 
+> 0.10*ncol(datC)
+[1] 40.5
+> table(nna < 0.10*ncol(datC))
+
+FALSE  TRUE 
+   34 19628 
+> 
+> 0.05*ncol(datC)
+[1] 20.25
+> table(nna < 0.05*ncol(datC))
+
+FALSE  TRUE 
+  127 19535 
+> 
+> table(nna < 1)
+
+FALSE  TRUE 
+ 1647 18015 
+> 
+> w2kp = which(nna < 0.05*ncol(datC))
+> datC = datC[w2kp,]
+> dim(datC)
+[1] 19535   405
+> datC[1:2,1:5]
+               A0SE    A0SF    A0SG    A0SH    A0SI
+CPA1|1357    0.0127  0.1885 -0.0077  0.0283  0.1005
+GUCY2D|3000 -0.4134 -0.3536  0.0061 -0.3774 -0.3798
+> 
+> nna  = colSums(is.na(datC))
+> summary(nna)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+   0.00    0.00    6.00   14.94   19.00  188.00 
+> table(nna[nna > 0])
+
+  1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16  17  18  19  20 
+ 34  17  20  17   7  11  13   9   5   8   8   5  11   6   9  10   5   1   6   2 
+ 21  22  23  24  26  27  28  29  30  31  32  33  34  35  36  37  38  39  40  41 
+  7   4   1   1   3   5   5   3   3   3   1   2   2   3   4   2   2   1   2   3 
+ 44  45  46  48  49  50  51  53  54  55  66  67  68  73  74  75  80  82  85  86 
+  4   1   1   2   1   2   1   1   1   1   2   1   1   2   1   1   1   1   3   1 
+ 88  94  98 104 105 116 117 126 188 
+  1   1   1   1   1   1   1   1   1 
+> 
+> avs = rowMeans(datC, na.rm=TRUE)
+> sds = apply(datC, 1, sd, na.rm=TRUE)
+> 
+> summary(sds)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+0.08239 0.19550 0.21820 0.22800 0.25760 0.73420 
+> summary(avs)
+     Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+-0.291600 -0.058640 -0.007197  0.004390  0.037710  0.389300 
+> 
+> pdf("figures2/cn_values.pdf", width=7, height=3.5)
+> 
+> mat = matrix(c(1,2,3,3), ncol=2)
+> layout(mat)
+> 
+> par(mar=c(5, 4, 1, 1), bty="n")
+> hist(avs, xlab="mean values", main="")
+> hist(sds, xlab="sds", main="")
+> smoothScatter(avs, sds, xlab="mean values", ylab="sds")
+> 
+> dev.off()
+null device 
+          1 
+> 
+> # ------------------------------------------------------------
+> # read in gene location information
+> # ------------------------------------------------------------
+> 
+> ff0   = "_data2/gene_info.txt"
+> infoC = read.table(ff0, sep = "\t", header = TRUE, as.is=TRUE, comment.char="")
+> dim(infoC)
+[1] 20323     8
+> infoC[1:2,]
+         gene geneSymbol geneID   chr     start       end strand
+1   CPA1|1357       CPA1   1357  chr7 130020290 130027948      +
+2 GUCY2D|3000     GUCY2D   3000 chr17   7905988   7923658      +
+          ensembl
+1 ENSG00000091704
+2 ENSG00000132518
+> length(unique(infoC$gene))
+[1] 20323
+> 
+> table(rownames(datC) %in% infoC$gene)
+
+ TRUE 
+19535 
+> 
+> infoC = infoC[match(rownames(datC), infoC$gene),]
+> dim(infoC)
+[1] 19535     8
+> infoC[1:5,]
+            gene geneSymbol geneID   chr     start       end strand
+1      CPA1|1357       CPA1   1357  chr7 130020290 130027948      +
+2    GUCY2D|3000     GUCY2D   3000 chr17   7905988   7923658      +
+3       UBC|7316        UBC   7316 chr12 125396194 125399577      -
+4 C11orf95|65998   C11orf95  65998 chr11  63527365  63536113      -
+5   ANKMY2|57037     ANKMY2  57037  chr7  16639413  16685398      -
+          ensembl
+1 ENSG00000091704
+2 ENSG00000132518
+3 ENSG00000150991
+4            <NA>
+5 ENSG00000106524
+> 
+> table(rownames(datC) == infoC$gene)
+
+ TRUE 
+19535 
+> table(infoC$chr, useNA="ifany")
+
+ chr1 chr10 chr11 chr12 chr13 chr14 chr15 chr16 chr17 chr18 chr19  chr2 chr20 
+ 1912   762  1205  1029   336   644   636   780  1183   265  1393  1255   537 
+chr21 chr22  chr3  chr4  chr5  chr6  chr7  chr8  chr9  chrX 
+  243   423  1097   735   876  1080   952   630   785   777 
+> 
+> # ------------------------------------------------------------
+> # Run PCA using copy number data, check possible outlier
+> # these PCs do include many batch effect information
+> # ------------------------------------------------------------
+> 
+> datC     = data.matrix(datC)
+> datR14Pr = datC - rowMeans(datC, na.rm=TRUE)
+> 
+> datR14Pr[is.na(datR14Pr)] = 0
+> covdatR1 = t(datR14Pr) %*% datR14Pr / nrow(datR14Pr)
+> dim(covdatR1)
+[1] 405 405
+> prdatR1  = eigen(covdatR1)
+> 
+> prdatR1$values[1:20]
+ [1] 1.7083634 1.4529945 1.1909565 0.7313045 0.6945536 0.6654824 0.6177337
+ [8] 0.5559486 0.5250357 0.4851721 0.4639255 0.4383306 0.4064221 0.3807765
+[15] 0.3773378 0.3758173 0.3428790 0.3179123 0.3082312 0.3048015
+> 
+> PC1 =  prdatR1$vectors[,1]
+> PC2 =  prdatR1$vectors[,2]
+> PC3 =  prdatR1$vectors[,3]
+> 
+> pdf("figures2/cn_PCs.pdf", width=6, height=6)
+> par(mar=c(5,4,1,1), mfrow=c(2,2))
+> barplot(prdatR1$values[1:20], main="",
++ xlab="Index", ylab="Eigen-value")
+> 
+> par(mar=c(5,4,1,1))
+> subtypes = unique(na.omit(emInfo$pam50))
+> cols = c("red", "green", "blue", "purple", "orange")
+> 
+> legend("topright", legend=subtypes, col=cols, pch=1, bty="n")
+> 
+> plot(PC1, PC2,  bty="n", cex=0.8)
+> for(j in 1:5){
++   sj = subtypes[j]
++   wj = which(emInfo$pam50 == sj)
++   points(PC1[wj], PC2[wj], col=cols[j], cex=0.8)
++ }
+> 
+> plot(PC1, PC3,  bty="n", cex=0.8)
+> for(j in 1:5){
++   sj = subtypes[j]
++   wj = which(emInfo$pam50 == sj)
++   points(PC1[wj], PC3[wj], col=cols[j], cex=0.8)
++ }
+> 
+> plot(PC2, PC3,  bty="n", cex=0.8)
+> for(j in 1:5){
++   sj = subtypes[j]
++   wj = which(emInfo$pam50 == sj)
++   points(PC2[wj], PC3[wj], col=cols[j], cex=0.8)
++ }
+> 
+> dev.off()
+null device 
+          1 
+> 
+> cor(prdatR1$vectors[,1:5], emInfo$abs_purity, use="pair")
+             [,1]
+[1,]  0.246194996
+[2,] -0.136372026
+[3,] -0.318596656
+[4,]  0.009250304
+[5,]  0.220528692
+> cor(prdatR1$vectors[,1:5], emInfo$age_at_diagnosis, use="pair")
+             [,1]
+[1,]  0.167141895
+[2,]  0.009488572
+[3,] -0.021921776
+[4,] -0.148630782
+[5,] -0.086742368
+> 
+> summary(lm(PC1 ~ emInfo$pam50))
+
+Call:
+lm(formula = PC1 ~ emInfo$pam50)
+
+Residuals:
+      Min        1Q    Median        3Q       Max 
+-0.104417 -0.025731 -0.004994  0.019479  0.136607 
+
+Coefficients:
+                    Estimate Std. Error t value Pr(>|t|)    
+(Intercept)        -0.070134   0.004612 -15.208  < 2e-16 ***
+emInfo$pam50Her2    0.040605   0.009223   4.403 1.37e-05 ***
+emInfo$pam50LumA    0.081531   0.005225  15.604  < 2e-16 ***
+emInfo$pam50LumB    0.101687   0.005999  16.950  < 2e-16 ***
+emInfo$pam50Normal  0.024765   0.013738   1.803   0.0722 .  
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.0366 on 400 degrees of freedom
+Multiple R-squared:  0.4641,	Adjusted R-squared:  0.4587 
+F-statistic:  86.6 on 4 and 400 DF,  p-value: < 2.2e-16
+
+> summary(lm(PC2 ~ emInfo$pam50))
+
+Call:
+lm(formula = PC2 ~ emInfo$pam50)
+
+Residuals:
+     Min       1Q   Median       3Q      Max 
+-0.17590 -0.02505  0.00755  0.02816  0.11238 
+
+Coefficients:
+                    Estimate Std. Error t value Pr(>|t|)    
+(Intercept)        -0.040856   0.005285  -7.731 8.75e-14 ***
+emInfo$pam50Her2    0.027448   0.010570   2.597 0.009756 ** 
+emInfo$pam50LumA    0.064194   0.005988  10.720  < 2e-16 ***
+emInfo$pam50LumB    0.014150   0.006875   2.058 0.040230 *  
+emInfo$pam50Normal  0.053976   0.015745   3.428 0.000671 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.04195 on 400 degrees of freedom
+Multiple R-squared:  0.2961,	Adjusted R-squared:  0.2891 
+F-statistic: 42.07 on 4 and 400 DF,  p-value: < 2.2e-16
+
+> summary(lm(PC3 ~ emInfo$pam50))
+
+Call:
+lm(formula = PC3 ~ emInfo$pam50)
+
+Residuals:
+     Min       1Q   Median       3Q      Max 
+-0.19325 -0.03112  0.00298  0.03552  0.11527 
+
+Coefficients:
+                    Estimate Std. Error t value Pr(>|t|)   
+(Intercept)        -0.013033   0.006184  -2.108  0.03569 * 
+emInfo$pam50Her2    0.026685   0.012368   2.158  0.03155 * 
+emInfo$pam50LumA    0.016098   0.007007   2.298  0.02210 * 
+emInfo$pam50LumB    0.007402   0.008044   0.920  0.35807   
+emInfo$pam50Normal  0.058825   0.018422   3.193  0.00152 **
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.04908 on 400 degrees of freedom
+Multiple R-squared:  0.03636,	Adjusted R-squared:  0.02673 
+F-statistic: 3.773 on 4 and 400 DF,  p-value: 0.005017
+
+> 
+> # ------------------------------------------------------------
+> # order genes by locations
+> # ------------------------------------------------------------
+> 
+> table(infoC$chr, useNA="ifany")
+
+ chr1 chr10 chr11 chr12 chr13 chr14 chr15 chr16 chr17 chr18 chr19  chr2 chr20 
+ 1912   762  1205  1029   336   644   636   780  1183   265  1393  1255   537 
+chr21 chr22  chr3  chr4  chr5  chr6  chr7  chr8  chr9  chrX 
+  243   423  1097   735   876  1080   952   630   785   777 
+> numChr = gsub("chr", "", infoC$chr)
+> numChr[which(numChr == "X")] = "23"
+> numChr = as.numeric(numChr)
+> table(numChr, useNA="ifany")
+numChr
+   1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16 
+1912 1255 1097  735  876 1080  952  630  785  762 1205 1029  336  644  636  780 
+  17   18   19   20   21   22   23 
+1183  265 1393  537  243  423  777 
+> 
+> od1   = order(numChr, infoC$start)
+> datC  = datC[od1,]
+> infoC = infoC[od1,]
+> 
+> # ------------------------------------------------------------
+> # write out data and information
+> # ------------------------------------------------------------
+> 
+> table(colnames(datC) == emInfo$patient_id)
+
+TRUE 
+ 405 
+> table(rownames(datC) == infoC$gene)
+
+ TRUE 
+19535 
+> 
+> pDat = data.frame(id=rownames(datC), datC)
+> dim(pDat)
+[1] 19535   406
+> pDat[1:2,1:5]
+                           id    A0SE    A0SF    A0SG    A0SH
+PRDM16|63976     PRDM16|63976 -0.0313 -0.0562 -0.0051 -0.3264
+ARHGEF16|27237 ARHGEF16|27237 -0.0313 -0.0562 -0.0051 -0.3264
+> 
+> write.table(pDat, file = "_data2/cn_values.txt", append = FALSE,
++             quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
+> 
+> dim(infoC)
+[1] 19535     8
+> infoC[1:5,]
+                gene geneSymbol geneID  chr   start     end strand
+3697    PRDM16|63976     PRDM16  63976 chr1 2985744 3355183      +
+15274 ARHGEF16|27237   ARHGEF16  27237 chr1 3371147 3397675      +
+8587      MEGF6|1953      MEGF6   1953 chr1 3404513 3528059      -
+14014  TPRG1L|127262     TPRG1L 127262 chr1 3541556 3546692      +
+5326      WDR8|49856       WDR8  49856 chr1 3547332 3566671      -
+              ensembl
+3697  ENSG00000142611
+15274 ENSG00000130762
+8587  ENSG00000162591
+14014 ENSG00000158109
+5326  ENSG00000116213
+> 
+> write.table(infoC, file = "_data2/cn_info.txt", append = FALSE,
++             quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
+> 
+> ################################################
+> ##### Truncated for visualization purposes #####
+> ################################################
+> 
+> summary(as.numeric(datC))
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's 
+ -7.241  -0.073   0.002   0.004   0.089   3.358    6050 
+> 
+> toplot = datC
+> toplot[which(datC > 1)]  = 1
+> toplot[which(datC < -1)] = -1
+> 
+> binnames   = infoC$chr
+> binlabel   = gsub("chr", "", binnames)
+> binlabel   = gsub("X", "23", binlabel)
+> difference = diff(as.numeric(binlabel))
+> seps       = which(difference != 0)+1
+> rowseps    = c(1, seps, length(binnames))
+> binlabel   = rep("", length(binnames))
+> middle     = round((c(1, seps) + c(seps, length(binnames)))/2)
+> binlabel[middle] = c(1:22, "X")
+> 
+> 
+> palette.gr.marray = colorRampPalette(c("blue", "white", "red"))
+> png("figures2/cn_heatmap.png", width = 10, height = 10, units="in", res=400)
+> 
+> h2 = heatmap.2(toplot, trace = "none", col = palette.gr.marray,
++           Rowv = F, dendrogram = "column", key = T, symbreaks = T,
++           sepwidth = c(0.02, 0.02), rowsep = rowseps, sepcolor = "gray30",
++           labRow = binlabel, cexRow = 0.7, labCol = NA, cexCol = 1)
+> dev.off()
+null device 
+          1 
+> 
+> # ------------------------------------------------------------
+> # Run clustreing on cn data
+> # ------------------------------------------------------------
+> 
+> dist1 = dist(t(toplot))
+> h1    = hclust(dist1)
+> 
+> pdf("figures2/cn_hclust.pdf", width=8, height=4)
+> par(mar=c(5,4,1,1))
+> plot(h1, main="", labels=FALSE, cex=0.7, hang=-1)
+> 
+> for(j in 1:5){
++   sj = subtypes[j]
++   wj = which(emInfo$pam50[h1$order] == sj)
++   mtext("I", side=1, line=0, col=cols[j], at=wj, cex=1, font=2)
++ }
+> 
+> legend("topright", legend=subtypes, col=cols, pch="I", bty="n", cex=0.9)
+> dev.off()
+null device 
+          1 
+> 
+> # ------------------------------------------------------------
+> # obtain batch information for copy number data
+> # ------------------------------------------------------------
+> 
+> samC = strsplit(emInfo$cn_barcode, split="-", fixed=TRUE)
+> table(sapply(samC, length))
+
+  7 
+405 
+> 
+> samC = matrix(unlist(samC), byrow=TRUE, ncol=7)
+> dim(samC)
+[1] 405   7
+> samC[1:2,]
+     [,1]   [,2] [,3]   [,4]  [,5]  [,6]   [,7]
+[1,] "TCGA" "A1" "A0SE" "01A" "11D" "A087" "01"
+[2,] "TCGA" "A1" "A0SF" "01A" "11D" "A141" "01"
+> 
+> samC = samC[,2:6]
+> dim(samC)
+[1] 405   5
+> samC[1:2,]
+     [,1] [,2]   [,3]  [,4]  [,5]  
+[1,] "A1" "A0SE" "01A" "11D" "A087"
+[2,] "A1" "A0SF" "01A" "11D" "A141"
+> 
+> samC = data.frame(samC, stringsAsFactors=FALSE)
+> names(samC) = c("institution", "patientID", "type", "portion", "plate")
+> dim(samC)
+[1] 405   5
+> samC[1:2,]
+  institution patientID type portion plate
+1          A1      A0SE  01A     11D  A087
+2          A1      A0SF  01A     11D  A141
+> 
+> samM = strsplit(emInfo$methylation_file, split="-", fixed=TRUE)
+> table(sapply(samM, length))
+
+  9 
+405 
+> samM = matrix(unlist(samM), byrow=TRUE, ncol=9)
+> dim(samM)
+[1] 405   9
+> samM[1:2,]
+     [,1]  [,2]                                      [,3]     [,4] [,5]   [,6] 
+[1,] "jhu" "usc.edu_BRCA.HumanMethylation450.4.lvl"  "3.TCGA" "A1" "A0SE" "01A"
+[2,] "jhu" "usc.edu_BRCA.HumanMethylation450.11.lvl" "3.TCGA" "A1" "A0SF" "01A"
+     [,7]  [,8]   [,9]    
+[1,] "11D" "A10P" "05.txt"
+[2,] "11D" "A145" "05.txt"
+> 
+> samM = samM[,4:8]
+> dim(samM)
+[1] 405   5
+> samM[1:2,]
+     [,1] [,2]   [,3]  [,4]  [,5]  
+[1,] "A1" "A0SE" "01A" "11D" "A10P"
+[2,] "A1" "A0SF" "01A" "11D" "A145"
+> 
+> samM = data.frame(samM, stringsAsFactors=FALSE)
+> names(samM) = c("institution", "patientID", "type", "portion", "plate")
+> dim(samM)
+[1] 405   5
+> samM[1:2,]
+  institution patientID type portion plate
+1          A1      A0SE  01A     11D  A10P
+2          A1      A0SF  01A     11D  A145
+> 
+> 
+> table(samC$institution == samM$institution)
+
+TRUE 
+ 405 
+> table(samC$patientID == samM$patientID)
+
+TRUE 
+ 405 
+> 
+> sort(table(samC$plate))
+
+A19G A17C A21P A19X A20R A227 A134 A17U A18N A10L A16C A14F A141 A160 A14J A107 
+   1    4    4    5    7    8   10   10   10   18   18   19   22   23   28   30 
+A12N A059 A087 A166 A13J 
+  30   34   36   36   52 
+> sort(table(samM$plate))
+
+A17F A21R A19Z A212 A22B A138 A17Z A18O A10N A16G A14H A145 A161 A14N A10A A12R 
+   4    4    5    7    8   10   10   11   18   18   19   22   23   28   30   30 
+A16A A13K A10P 
+  36   52   70 
+> 
+> length(table(samC$plate))
+[1] 21
+> length(table(samM$plate))
+[1] 19
+> 
+> ## the plate informtion of copy number and methylation are almost the same
+> ## so I will just use the plate informaiton from expression data
+> table(samC$plate, samM$plate)
+      
+       A10A A10N A10P A12R A138 A13K A145 A14H A14N A161 A16A A16G A17F A17Z
+  A059    0    0   34    0    0    0    0    0    0    0    0    0    0    0
+  A087    0    0   36    0    0    0    0    0    0    0    0    0    0    0
+  A107   30    0    0    0    0    0    0    0    0    0    0    0    0    0
+  A10L    0   18    0    0    0    0    0    0    0    0    0    0    0    0
+  A12N    0    0    0   30    0    0    0    0    0    0    0    0    0    0
+  A134    0    0    0    0   10    0    0    0    0    0    0    0    0    0
+  A13J    0    0    0    0    0   52    0    0    0    0    0    0    0    0
+  A141    0    0    0    0    0    0   22    0    0    0    0    0    0    0
+  A14F    0    0    0    0    0    0    0   19    0    0    0    0    0    0
+  A14J    0    0    0    0    0    0    0    0   28    0    0    0    0    0
+  A160    0    0    0    0    0    0    0    0    0   23    0    0    0    0
+  A166    0    0    0    0    0    0    0    0    0    0   36    0    0    0
+  A16C    0    0    0    0    0    0    0    0    0    0    0   18    0    0
+  A17C    0    0    0    0    0    0    0    0    0    0    0    0    4    0
+  A17U    0    0    0    0    0    0    0    0    0    0    0    0    0   10
+  A18N    0    0    0    0    0    0    0    0    0    0    0    0    0    0
+  A19G    0    0    0    0    0    0    0    0    0    0    0    0    0    0
+  A19X    0    0    0    0    0    0    0    0    0    0    0    0    0    0
+  A20R    0    0    0    0    0    0    0    0    0    0    0    0    0    0
+  A21P    0    0    0    0    0    0    0    0    0    0    0    0    0    0
+  A227    0    0    0    0    0    0    0    0    0    0    0    0    0    0
+      
+       A18O A19Z A212 A21R A22B
+  A059    0    0    0    0    0
+  A087    0    0    0    0    0
+  A107    0    0    0    0    0
+  A10L    0    0    0    0    0
+  A12N    0    0    0    0    0
+  A134    0    0    0    0    0
+  A13J    0    0    0    0    0
+  A141    0    0    0    0    0
+  A14F    0    0    0    0    0
+  A14J    0    0    0    0    0
+  A160    0    0    0    0    0
+  A166    0    0    0    0    0
+  A16C    0    0    0    0    0
+  A17C    0    0    0    0    0
+  A17U    0    0    0    0    0
+  A18N   10    0    0    0    0
+  A19G    1    0    0    0    0
+  A19X    0    5    0    0    0
+  A20R    0    0    7    0    0
+  A21P    0    0    0    4    0
+  A227    0    0    0    0    8
+> 
+> # ------------------------------------------------------------
+> # check the association between copy number and batches
+> # ------------------------------------------------------------
+> 
+> table(rowSums(is.na(datC)))
+
+    0     1     2     3     4     5     6     7     8     9    10    11    12 
+18015   617   268   127    73    44    59    51     4   111    21     3    11 
+   13    14    15    18    20 
+   13    95    14     1     8 
+> 
+> pC    = matrix(NA, nrow=nrow(datC), ncol=6)
+> rDatC = matrix(NA, nrow=nrow(datC), ncol=ncol(datC))
+> age   = emInfo$age_at_diagnosis
+> PC1   = emInfo$noHM_PC1
+> PC2   = emInfo$noHM_PC2
+> PC3   = emInfo$noHM_PC3
+> 
+> for(i in 1:nrow(datC)){
++   
++   if(i %% 1000 == 0){
++     cat(i, date(), "\n")
++   }
++   
++   yi = datC[i,]
++   li = lm(yi ~ samC$institution + samC$plate + age + PC1 + PC2 + PC3)
++   ai = anova(li)
++   
++   pC[i,] = ai[1:6,5]
++   
++   rDatC[i,which(!is.na(yi))] = li$residuals
++ }
+1000 Mon Aug 10 20:02:17 2015 
+2000 Mon Aug 10 20:02:22 2015 
+3000 Mon Aug 10 20:02:28 2015 
+4000 Mon Aug 10 20:02:33 2015 
+5000 Mon Aug 10 20:02:39 2015 
+6000 Mon Aug 10 20:02:45 2015 
+7000 Mon Aug 10 20:02:52 2015 
+8000 Mon Aug 10 20:02:58 2015 
+9000 Mon Aug 10 20:03:04 2015 
+10000 Mon Aug 10 20:03:09 2015 
+11000 Mon Aug 10 20:03:15 2015 
+12000 Mon Aug 10 20:03:20 2015 
+13000 Mon Aug 10 20:03:25 2015 
+14000 Mon Aug 10 20:03:30 2015 
+15000 Mon Aug 10 20:03:35 2015 
+16000 Mon Aug 10 20:03:40 2015 
+17000 Mon Aug 10 20:03:46 2015 
+18000 Mon Aug 10 20:03:51 2015 
+19000 Mon Aug 10 20:03:56 2015 
+> 
+> pdf("figures2/cn_vs_batches_p-value.pdf", width=10.5, height=7)
+> par(mfrow=c(2,3), mar=c(5,4,2,1), bty="n")
+> hist(pC[,1], xlab="p-value", main="instituion", breaks=20)
+> hist(pC[,2], xlab="p-value", main="plate", breaks=20)
+> hist(pC[,3], xlab="p-value", main="age", breaks=20)
+> 
+> hist(pC[,4], xlab="p-value", main="PC1", breaks=20)
+> hist(pC[,5], xlab="p-value", main="PC2", breaks=20)
+> hist(pC[,6], xlab="p-value", main="PC3", breaks=20)
+> 
+> dev.off()
+null device 
+          1 
+> 
+> summary(pC)
+       V1                  V2                  V3           
+ Min.   :0.0000006   Min.   :0.0001991   Min.   :0.0000034  
+ 1st Qu.:0.3118760   1st Qu.:0.3654279   1st Qu.:0.1067393  
+ Median :0.5873008   Median :0.5920322   Median :0.3907265  
+ Mean   :0.5610608   Mean   :0.5800826   Mean   :0.4149616  
+ 3rd Qu.:0.8264343   3rd Qu.:0.8271777   3rd Qu.:0.6889355  
+ Max.   :0.9998331   Max.   :0.9999659   Max.   :0.9997666  
+       V4                  V5                V6           
+ Min.   :0.0000969   Min.   :0.02086   Min.   :0.0006748  
+ 1st Qu.:0.2729446   1st Qu.:0.41804   1st Qu.:0.2660377  
+ Median :0.5116690   Median :0.63959   Median :0.5276490  
+ Mean   :0.5044353   Mean   :0.60015   Mean   :0.5133039  
+ 3rd Qu.:0.7465052   3rd Qu.:0.81078   3rd Qu.:0.7612996  
+ Max.   :0.9999319   Max.   :0.99996   Max.   :0.9998135  
+> 
+> table(pC[,3] < 1e-4)
+
+FALSE  TRUE 
+19461    74 
+> table(pC[,3] < 1e-5)
+
+FALSE  TRUE 
+19526     9 
+> table(pC[,3] < 1e-6)
+
+FALSE 
+19535 
+> 
+> cbind(infoC, pC[,3:4])[which(pC[,3] < 1e-5),]
+                 gene geneSymbol geneID  chr    start      end strand
+15468   SLC35D1|23169    SLC35D1  23169 chr1 67465015 67520080      -
+12583 C1orf141|400757   C1orf141 400757 chr1 67557859 67600653      -
+1233     IL23R|149233      IL23R 149233 chr1 67604590 67725648      +
+18650    LRRC40|55631     LRRC40  55631 chr1 70610497 70671275      -
+17968     SFRS11|9295     SFRS11   9295 chr1 70671365 70717683      +
+18814  ANKRD13C|81573   ANKRD13C  81573 chr1 70724686 70820417      -
+19319     HHLA3|11147      HHLA3  11147 chr1 70820493 70833703      +
+903       PTGER3|5733     PTGER3   5733 chr1 71318036 71513491      -
+17826      MAGI1|9223      MAGI1   9223 chr3 65339907 66024509      -
+              ensembl            1          2
+15468 ENSG00000116704 9.723984e-06 0.17104804
+12583 ENSG00000203963 7.402883e-06 0.17318576
+1233  ENSG00000162594 7.402883e-06 0.17318576
+18650 ENSG00000066557 5.485124e-06 0.31373173
+17968 ENSG00000116754 4.953428e-06 0.31062985
+18814 ENSG00000118454 7.445648e-06 0.33465605
+19319 ENSG00000197568 7.445648e-06 0.33465605
+903   ENSG00000050628 4.134288e-06 0.30977500
+17826 ENSG00000151276 3.430584e-06 0.06686598
+> 
+> IL23R = datC[which(infoC$gene=="IL23R|149233"),]
+> summary(lm(IL23R ~ age))
+
+Call:
+lm(formula = IL23R ~ age)
+
+Residuals:
+     Min       1Q   Median       3Q      Max 
+-0.71513 -0.08416  0.02483  0.10392  0.75292 
+
+Coefficients:
+              Estimate Std. Error t value Pr(>|t|)    
+(Intercept)  0.1797153  0.0445138   4.037 6.47e-05 ***
+age         -0.0037778  0.0007383  -5.117 4.82e-07 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.1936 on 403 degrees of freedom
+Multiple R-squared:  0.061,	Adjusted R-squared:  0.05867 
+F-statistic: 26.18 on 1 and 403 DF,  p-value: 4.824e-07
+
+> 
+> pdf("figures2/cn_vs_age_IL23R.pdf", width=4, height=4)
+> par(mar=c(5,4,2,1), bty="n")
+> plot(age, IL23R, pch=20, col=rgb(1, 0.1, 0.1, 0.5))
+> dev.off()
+null device 
+          1 
+> 
+> # ------------------------------------------------------------
+> # Manhattan for age
+> # ------------------------------------------------------------
+> 
+> source("../shared_code/manhattan.R")
+> 
+> png("figures2/cn_vs_age.png", width=10, height=3.5, res=400, units="in")
+> par(mar=c(5,4,1,1), bty="n")
+> manhattan(pC[,3], gsub("chr", "", infoC$chr), infoC$start)
+> dev.off()
+null device 
+          1 
+> 
+> # ------------------------------------------------------------
+> # draw heatmap using residualized data
+> # ------------------------------------------------------------
+> 
+> summary(as.numeric(rDatC))
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's 
+ -6.563  -0.103   0.005   0.000   0.106   3.121    6050 
+> 
+> toplot = rDatC
+> toplot[which(rDatC > 1)]  = 1
+> toplot[which(rDatC < -1)] = -1
+> 
+> png("figures2/cn_heatmap_rm_institute_plate_age_genoPC.png",
++     width = 10, height = 10, units="in", res=400)
+> 
+> heatmap.2(toplot, trace = "none", col = palette.gr.marray,
++ Rowv = F, dendrogram = "column", key = T, symbreaks = T,
++ sepwidth = c(0.02, 0.02), rowsep = rowseps, sepcolor = "gray30",
++ labRow = binlabel, cexRow = 0.7, labCol = NA, cexCol = 1)
+> dev.off()
+null device 
+          1 
+> 
+> # ------------------------------------------------------------
+> # Run clustreing on residualized cn data
+> # ------------------------------------------------------------
+> 
+> dist1 = dist(t(toplot))
+> h1    = hclust(dist1)
+> 
+> pdf("figures2/cn_hclust_rm_institute_plate_age_genoPC.pdf",
++ width=8, height=4)
+> par(mar=c(5,4,1,1))
+> plot(h1, main="", labels=FALSE, cex=0.7, hang=-1)
+> 
+> for(j in 1:5){
++   sj = subtypes[j]
++   wj = which(emInfo$pam50[h1$order] == sj)
++   mtext("I", side=1, line=0, col=cols[j], at=wj, cex=1, font=2)
++ }
+> 
+> legend("topright", legend=subtypes, col=cols, pch="I", bty="n", cex=0.9)
+> dev.off()
+null device 
+          1 
+> 
+> # ------------------------------------------------------------
+> # Run PCA using cn data, check possible outlier
+> # these PCs do include many batch effect information
+> # ------------------------------------------------------------
+> 
+> datR14Pr = rDatC - rowMeans(rDatC, na.rm=TRUE)
+> 
+> datR14Pr[is.na(datR14Pr)] = 0
+> covdatR1 = t(datR14Pr) %*% datR14Pr / nrow(datR14Pr)
+> dim(covdatR1)
+[1] 405 405
+> prdatR1  = eigen(covdatR1)
+> 
+> prdatR1$values[1:20]
+ [1] 1.5374263 1.2822017 1.1120067 0.6778036 0.6264047 0.5953682 0.5695254
+ [8] 0.5136322 0.4779962 0.4372115 0.4250441 0.3934687 0.3631387 0.3554263
+[15] 0.3481845 0.3414480 0.3178977 0.2963722 0.2818408 0.2632832
+> 
+> PC1 =  prdatR1$vectors[,1]
+> PC2 =  prdatR1$vectors[,2]
+> PC3 =  prdatR1$vectors[,3]
+> 
+> pdf("figures2/cn_PCs_mvalue_rm_institute_plate_age_genoPCs.pdf",
++ width=6, height=6)
+> par(mar=c(5,4,1,1), mfrow=c(2,2))
+> barplot(prdatR1$values[1:20], main="",
++ xlab="Index", ylab="Eigen-value")
+> 
+> subtypes = unique(na.omit(emInfo$pam50))
+> cols = c("red", "green", "blue", "purple", "orange")
+> 
+> legend("topright", legend=subtypes, col=cols, pch=1, bty="n")
+> 
+> par(mar=c(5,4,1,1))
+> 
+> plot(PC1, PC2,  bty="n", cex=0.8)
+> for(j in 1:5){
++   sj = subtypes[j]
++   wj = which(emInfo$pam50 == sj)
++   points(PC1[wj], PC2[wj], col=cols[j], cex=0.8)
++ }
+> 
+> plot(PC1, PC3,  bty="n", cex=0.8)
+> for(j in 1:5){
++   sj = subtypes[j]
++   wj = which(emInfo$pam50 == sj)
++   points(PC1[wj], PC3[wj], col=cols[j], cex=0.8)
++ }
+> 
+> plot(PC2, PC3,  bty="n", cex=0.8)
+> for(j in 1:5){
++   sj = subtypes[j]
++   wj = which(emInfo$pam50 == sj)
++   points(PC2[wj], PC3[wj], col=cols[j], cex=0.8)
++ }
+> 
+> dev.off()
+null device 
+          1 
+> 
+> cor(prdatR1$vectors[,1:5], emInfo$abs_purity, use="pair")
+            [,1]
+[1,] -0.16240772
+[2,] -0.07554312
+[3,] -0.32251084
+[4,] -0.01922130
+[5,] -0.18274529
+> 
+> summary(lm(PC1 ~ emInfo$pam50))
+
+Call:
+lm(formula = PC1 ~ emInfo$pam50)
+
+Residuals:
+      Min        1Q    Median        3Q       Max 
+-0.147239 -0.021643  0.001852  0.024551  0.114310 
+
+Coefficients:
+                    Estimate Std. Error t value Pr(>|t|)    
+(Intercept)         0.071777   0.004569  15.709  < 2e-16 ***
+emInfo$pam50Her2   -0.037554   0.009138  -4.109 4.81e-05 ***
+emInfo$pam50LumA   -0.084969   0.005177 -16.412  < 2e-16 ***
+emInfo$pam50LumB   -0.100468   0.005944 -16.902  < 2e-16 ***
+emInfo$pam50Normal -0.034418   0.013612  -2.528   0.0118 *  
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.03627 on 400 degrees of freedom
+Multiple R-squared:  0.4739,	Adjusted R-squared:  0.4686 
+F-statistic: 90.07 on 4 and 400 DF,  p-value: < 2.2e-16
+
+> summary(lm(PC2 ~ emInfo$pam50))
+
+Call:
+lm(formula = PC2 ~ emInfo$pam50)
+
+Residuals:
+      Min        1Q    Median        3Q       Max 
+-0.185437 -0.029164  0.004501  0.030627  0.125263 
+
+Coefficients:
+                    Estimate Std. Error t value Pr(>|t|)    
+(Intercept)        -0.029156   0.005695  -5.120 4.77e-07 ***
+emInfo$pam50Her2    0.018654   0.011390   1.638  0.10226    
+emInfo$pam50LumA    0.047461   0.006453   7.355 1.09e-12 ***
+emInfo$pam50LumB    0.005661   0.007409   0.764  0.44523    
+emInfo$pam50Normal  0.045631   0.016966   2.690  0.00746 ** 
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.0452 on 400 degrees of freedom
+Multiple R-squared:  0.1827,	Adjusted R-squared:  0.1745 
+F-statistic: 22.35 on 4 and 400 DF,  p-value: < 2.2e-16
+
+> summary(lm(PC3 ~ emInfo$pam50))
+
+Call:
+lm(formula = PC3 ~ emInfo$pam50)
+
+Residuals:
+      Min        1Q    Median        3Q       Max 
+-0.200754 -0.032621  0.000507  0.035605  0.120130 
+
+Coefficients:
+                     Estimate Std. Error t value Pr(>|t|)   
+(Intercept)        -1.132e-02  6.146e-03  -1.841   0.0663 . 
+emInfo$pam50Her2    2.734e-02  1.229e-02   2.224   0.0267 * 
+emInfo$pam50LumA    1.589e-02  6.964e-03   2.281   0.0231 * 
+emInfo$pam50LumB    8.493e-05  7.996e-03   0.011   0.9915   
+emInfo$pam50Normal  5.931e-02  1.831e-02   3.239   0.0013 **
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.04879 on 400 degrees of freedom
+Multiple R-squared:  0.04801,	Adjusted R-squared:  0.03849 
+F-statistic: 5.043 on 4 and 400 DF,  p-value: 0.000565
+
+> 
+> # ------------------------------------------------------------
+> # if the median correaltion of one sample with other samples is too low
+> # indicating this sample is an outlier and we shoudl remove it
+> # ------------------------------------------------------------
+> 
+> cr1 = cor(rDatC, use="pair")
+> Ds  = apply(cr1, 1, median)
+> pdf("figures2/cn_D_statistics_rm_institute_plate_age_genoPC.pdf",
++     width=8, height=4)
+> par(mar=c(5,4,1,1), mfrow=c(1,2), bty="n")
+> hist(Ds, xlab="D statistics", breaks=20, main="")
+> plot(Ds, emInfo$abs_purity, type="n", ylab="Purity")
+> 
+> for(j in 1:5){
++   sj = subtypes[j]
++   wj = which(emInfo$pam50 == sj)
++   points(Ds[wj], emInfo$abs_purity[wj], col=cols[j], cex=0.8)
++ }
+> dev.off()
+null device 
+          1 
+> 
+> emInfo$Ds = Ds
+> emInfo[emInfo$Ds < quantile(Ds, 0.05), c(1:2,20:22)]
+    bcr_patient_barcode patient_id abs_doublings pam50     noHM_PC1
+11         TCGA-A2-A0CT       A0CT             0  LumA -0.001116718
+14         TCGA-A2-A0SV       A0SV             1  LumB -0.013433594
+18         TCGA-A2-A0T0       A0T0             0 Basal  0.085919247
+23         TCGA-A2-A0YD       A0YD             0  LumA -0.013727215
+26         TCGA-A2-A0YH       A0YH             1  LumB -0.002249297
+28         TCGA-A2-A0YJ       A0YJ             2 Basal -0.015112253
+97         TCGA-AO-A1KT       A1KT             1  LumB -0.006536893
+102        TCGA-AR-A0TP       A0TP             0 Basal -0.004812064
+141        TCGA-AR-A251       A251             1 Basal  0.167430029
+147        TCGA-AR-A2LK       A2LK             1  LumB -0.011537961
+152        TCGA-AR-A2LR       A2LR             1 Basal -0.013555629
+209        TCGA-BH-A0HX       A0HX             1  LumA -0.011933594
+248        TCGA-D8-A1JC       A1JC             0  LumB -0.017233810
+249        TCGA-D8-A1JD       A1JD             2  LumB -0.007746865
+298        TCGA-D8-A27R       A27R             1  LumB -0.014552031
+301        TCGA-D8-A27W       A27W             2  LumB -0.010955726
+305        TCGA-E2-A109       A109             1  LumB -0.011528454
+353        TCGA-E9-A1RC       A1RC             1  LumA -0.007785936
+369        TCGA-E9-A244       A244             2 Basal -0.013723127
+376        TCGA-E9-A2JS       A2JS             1  LumB -0.008459647
+392        TCGA-EW-A1PH       A1PH             1 Basal -0.006877971
+> 
+> 
+> q(save = "no")
+> proc.time()
+   user  system elapsed 
+423.807   6.387 435.055 

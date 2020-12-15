@@ -1,0 +1,282 @@
+
+R version 3.1.0 (2014-04-10) -- "Spring Dance"
+Copyright (C) 2014 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin13.1.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/BRCA/_data2")
+> 
+> # ------------------------------------------------------------
+> # read in location annotation
+> # ------------------------------------------------------------
+> 
+> infoE = read.table("expression_info.txt", sep="\t", header=TRUE,
++ as.is=TRUE)
+> dim(infoE)
+[1] 15816     8
+> infoE[1:2,]
+     gene geneSymbol geneID   chr    start      end strand ensembl
+1 ?|10357          ?  10357 chr20 56063450 56064083      -    <NA>
+2 ?|10431          ?  10431 chr10 51592090 51623336      -    <NA>
+> infoE$pos = 0.5*(infoE$start + infoE$end)
+> 
+> table(infoE$chr, useNA="ifany")
+
+ chr1 chr10 chr11 chr12 chr13 chr14 chr15 chr16 chr17 chr18 chr19  chr2 chr20 
+ 1651   617   902   839   264   501   500   701   945   228  1135  1030   423 
+chr21 chr22  chr3  chr4  chr5  chr6  chr7  chr8  chr9  chrX  chrY 
+  161   395   888   586   742   817   764   534   635   557     1 
+> 
+> infoC = read.table("cn_info.txt", sep="\t", header=TRUE,
++ as.is=TRUE)
+> dim(infoC)
+[1] 19535     8
+> infoC[1:2,]
+            gene geneSymbol geneID  chr   start     end strand         ensembl
+1   PRDM16|63976     PRDM16  63976 chr1 2985744 3355183      + ENSG00000142611
+2 ARHGEF16|27237   ARHGEF16  27237 chr1 3371147 3397675      + ENSG00000130762
+> infoC$pos = 0.5*(infoC$start + infoC$end)
+> 
+> table(infoC$chr, useNA="ifany")
+
+ chr1 chr10 chr11 chr12 chr13 chr14 chr15 chr16 chr17 chr18 chr19  chr2 chr20 
+ 1912   762  1205  1029   336   644   636   780  1183   265  1393  1255   537 
+chr21 chr22  chr3  chr4  chr5  chr6  chr7  chr8  chr9  chrX 
+  243   423  1097   735   876  1080   952   630   785   777 
+> 
+> # ------------------------------------------------------------------------
+> # read in association results
+> # ------------------------------------------------------------------------
+> 
+> pvs0 = read.table("expression_vs_cn_qnorm.txt",
++                   header=TRUE, sep="\t", as.is=TRUE)
+> dim(pvs0)
+[1] 994266      6
+> pvs0[1:2,]
+          SNP          gene     beta   t.stat       p.value           FDR
+1 MAK16|84549 C8orf41|80185 2.003684 33.28143 1.324516e-112 4.092297e-104
+2  ASH2L|9070    ASH2L|9070 1.257015 32.74626 1.118845e-110 1.212229e-102
+> 
+> summary(pvs0$p.value)
+     Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+0.000e+00 0.000e+00 0.000e+00 3.698e-22 5.129e-24 1.000e-20 
+> summary(pvs0$FDR)
+     Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+0.000e+00 0.000e+00 1.000e-25 1.193e-19 2.125e-21 3.107e-18 
+> 
+> table(pvs0$p.value < 1e-30)
+
+ FALSE   TRUE 
+591313 402953 
+> 
+> pvs0$CN.chr = infoC$chr[match(pvs0$SNP, infoC$gene)]
+> pvs0$CN.pos = infoC$pos[match(pvs0$SNP, infoC$gene)]
+> 
+> pvs0$gene.chr = infoE$chr[match(pvs0$gene, infoE$gene)]
+> pvs0$gene.pos = infoE$pos[match(pvs0$gene, infoE$gene)]
+> 
+> table(pvs0$CN.chr == pvs0$gene.chr)
+
+ FALSE   TRUE 
+ 11551 982715 
+> table(pvs0$CN.chr == pvs0$gene.chr)/nrow(pvs0)
+
+     FALSE       TRUE 
+0.01161762 0.98838238 
+> 
+> # ------------------------------------------------------------------------
+> # read in eQTL results, given purity and subtype
+> # ------------------------------------------------------------------------
+> 
+> pvs = read.table("expression_vs_cn_with_ab_purity_pam50_qnorm.txt",
++ header=TRUE, sep="\t", as.is=TRUE)
+> dim(pvs)
+[1] 877954      6
+> pvs[1:2,]
+            SNP          gene     beta   t.stat       p.value           FDR
+1 VPS37A|137492   CNOT7|29883 2.421915 34.70808 6.594975e-117 2.037620e-108
+2   MAK16|84549 C8orf41|80185 2.004738 34.00865 1.820578e-114 1.136655e-106
+> 
+> summary(pvs$p.value)
+     Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+0.000e+00 0.000e+00 0.000e+00 3.867e-22 8.306e-24 9.999e-21 
+> summary(pvs$FDR)
+     Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+0.000e+00 0.000e+00 0.000e+00 1.416e-19 3.897e-21 3.519e-18 
+> 
+> table(pvs$p.value < 1e-30)
+
+ FALSE   TRUE 
+535621 342333 
+> 
+> pvs$CN.chr = infoC$chr[match(pvs$SNP, infoC$gene)]
+> pvs$CN.pos = infoC$pos[match(pvs$SNP, infoC$gene)]
+> 
+> pvs$gene.chr = infoE$chr[match(pvs$gene, infoE$gene)]
+> pvs$gene.pos = infoE$pos[match(pvs$gene, infoE$gene)]
+> 
+> table(pvs$CN.chr == pvs$gene.chr)
+
+ FALSE   TRUE 
+  4212 873742 
+> table(pvs$CN.chr == pvs$gene.chr)/nrow(pvs)
+
+      FALSE        TRUE 
+0.004797518 0.995202482 
+> 
+> table(pvs$CN.chr == pvs$gene.chr, pvs$p.value < 1e-30)
+       
+         FALSE   TRUE
+  FALSE   2974   1238
+  TRUE  532647 341095
+> table(pvs$CN.chr == pvs$gene.chr, pvs$p.value < 1e-50)
+       
+         FALSE   TRUE
+  FALSE   3976    236
+  TRUE  830904  42838
+> 
+> # ------------------------------------------------------------------------
+> # comparison
+> # ------------------------------------------------------------------------
+> 
+> summary(pvs0$beta)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+ -2.838   1.858   2.155   2.162   2.448   4.585 
+> table(pvs0$beta > 0)
+
+ FALSE   TRUE 
+  3526 990740 
+> 
+> summary(pvs$beta)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+ -2.313   1.810   2.088   2.106   2.373   4.122 
+> table(pvs$beta > 0)
+
+ FALSE   TRUE 
+    51 877903 
+> 
+> pvs2ck = pvs[which(pvs$beta < 0),]
+> pvs2ck[order(pvs2ck$CN.chr, pvs2ck$CN.pos),]
+                    SNP           gene      beta     t.stat      p.value
+801590 LOC284661|284661 RPL22L1|200916 -2.094632 -10.222981 1.044278e-21
+817729      AJAP1|55966 RPL22L1|200916 -2.030096 -10.161613 1.704547e-21
+590403     NPHP4|261734 RPL22L1|200916 -2.312934 -11.149508 5.337893e-25
+635262      KCNAB2|8514 RPL22L1|200916 -2.232589 -10.927919 3.368228e-24
+634730       CHD5|26038 RPL22L1|200916 -2.234186 -10.930735 3.290665e-24
+651605       RPL22|6146 RPL22L1|200916 -2.194761 -10.849580 6.432509e-24
+651606    RNF207|388591 RPL22L1|200916 -2.194761 -10.849580 6.432509e-24
+805114       ICMT|23463 RPL22L1|200916 -1.906143 -10.209674 1.161490e-21
+651687      HES3|390992 RPL22L1|200916 -2.194806 -10.849161 6.454730e-24
+651688    GPR153|387509 RPL22L1|200916 -2.194806 -10.849161 6.454730e-24
+651689      ACOT7|11332 RPL22L1|200916 -2.194806 -10.849161 6.454730e-24
+780449       HES2|54626 RPL22L1|200916 -2.136309 -10.306705 5.338372e-22
+780450       ESPN|83715 RPL22L1|200916 -2.136309 -10.306705 5.338372e-22
+780451    TNFRSF25|8718 RPL22L1|200916 -2.136309 -10.306705 5.338372e-22
+780452    PLEKHG5|57449 RPL22L1|200916 -2.136309 -10.306705 5.338372e-22
+727641       NOL9|79707 RPL22L1|200916 -2.199723 -10.517624 9.722968e-23
+725458     TAS1R1|80835 RPL22L1|200916 -2.200554 -10.527192 8.996306e-23
+725459      ZBTB48|3104 RPL22L1|200916 -2.200554 -10.527192 8.996306e-23
+725460      KLHL21|9903 RPL22L1|200916 -2.200554 -10.527192 8.996306e-23
+724886     PHF13|148479 RPL22L1|200916 -2.201809 -10.529613 8.821121e-23
+724887      THAP3|90326 RPL22L1|200916 -2.201809 -10.529613 8.821121e-23
+717073    DNAJC11|55735 RPL22L1|200916 -2.192530 -10.562208 6.768125e-23
+655096     CAMTA1|23261 RPL22L1|200916 -2.241706 -10.834250 7.298712e-24
+716396       VAMP3|9341 RPL22L1|200916 -2.280832 -10.565207 6.605015e-23
+716397        PER3|8863 RPL22L1|200916 -2.280832 -10.565207 6.605015e-23
+722033       UTS2|10911 RPL22L1|200916 -2.279953 -10.540974 8.043422e-23
+780754     TNFRSF9|3604 RPL22L1|200916 -2.217056 -10.305834 5.375875e-22
+780885      PARK7|11315 RPL22L1|200916 -2.216004 -10.305377 5.395639e-22
+804320     ERRFI1|54206 RPL22L1|200916 -2.196876 -10.212585 1.134782e-21
+749658    SLC45A1|50651 RPL22L1|200916 -2.223901 -10.428720 1.997553e-22
+726826         RERE|473 RPL22L1|200916 -2.228092 -10.521213 9.443734e-23
+855660    SLC2A7|155184 RPL22L1|200916 -1.951915 -10.019057 5.287512e-21
+840376      SLC2A5|6518 RPL22L1|200916 -2.141434 -10.075744 3.374446e-21
+840377     GPR157|80045 RPL22L1|200916 -2.141434 -10.075744 3.374446e-21
+832902        H6PD|9563 RPL22L1|200916 -2.180671 -10.103183 2.713771e-21
+832903      SPSB1|80176 RPL22L1|200916 -2.180671 -10.103183 2.713771e-21
+834138   SLC25A33|84275 RPL22L1|200916 -2.178062 -10.098484 2.817017e-21
+834139   TMEM201|199953 RPL22L1|200916 -2.178062 -10.098484 2.817017e-21
+846155   FAM92A1|137392   LRRC31|79782 -1.155245 -10.053685 4.019512e-21
+875666         GEM|2669   LRRC31|79782 -1.162053  -9.946718 9.360198e-21
+845909      RGS22|26166   LRRC31|79782 -1.151813 -10.054729 3.986406e-21
+843662       SPAG1|6674   LRRC31|79782 -1.119429 -10.063335 3.723480e-21
+869949       KLF10|7071   LRRC31|79782 -1.152537  -9.967662 7.935485e-21
+871059     ATP6V1C1|528   LRRC31|79782 -1.149999  -9.963571 8.195732e-21
+866331   C8orf56|157556   LRRC31|79782 -1.151357  -9.981084 7.137963e-21
+866332      BAALC|79870   LRRC31|79782 -1.151357  -9.981084 7.137963e-21
+799281        FZD6|8323   LRRC31|79782 -1.167680 -10.232639 9.666406e-22
+810792    CTHRC1|115908   LRRC31|79782 -1.173449 -10.188013 1.380869e-21
+770115   SLC25A32|81034   LRRC31|79782 -1.177579 -10.346634 3.872515e-22
+761689     DCAF13|25879   LRRC31|79782 -1.185392 -10.380341 2.951780e-22
+810573       RIMS2|9699   LRRC31|79782 -1.177264 -10.188794 1.372284e-21
+                FDR CN.chr    CN.pos gene.chr  gene.pos
+801590 4.025073e-19   chr1   4478428     chr3 170585356
+817729 6.440351e-19   chr1   4779478     chr3 170585356
+590403 2.793389e-22   chr1   5987700     chr3 170585356
+635262 1.638169e-21   chr1   6106644     chr3 170585356
+634730 1.601787e-21   chr1   6201018     chr3 170585356
+651605 3.050039e-21   chr1   6252380     chr3 170585356
+651606 3.050039e-21   chr1   6273770     chr3 170585356
+805114 4.457262e-19   chr1   6288650     chr3 170585356
+651687 3.060186e-21   chr1   6304950     chr3 170585356
+651688 3.060186e-21   chr1   6314224     chr3 170585356
+651689 3.060186e-21   chr1   6389080     chr3 170585356
+780449 2.113356e-19   chr1   6478615     chr3 170585356
+780450 2.113356e-19   chr1   6502926     chr3 170585356
+780451 2.113356e-19   chr1   6523738     chr3 170585356
+780452 2.113356e-19   chr1   6553110     chr3 170585356
+727641 4.128495e-20   chr1   6599896     chr3 170585356
+725458 3.831429e-20   chr1   6627625     chr3 170585356
+725459 3.831429e-20   chr1   6644698     chr3 170585356
+725460 3.831429e-20   chr1   6656854     chr3 170585356
+724886 3.759789e-20   chr1   6678924     chr3 170585356
+724887 3.759789e-20   chr1   6690285     chr3 170585356
+717073 2.916185e-20   chr1   6728097     chr3 170585356
+655096 3.442314e-21   chr1   7337574     chr3 170585356
+716396 2.848591e-20   chr1   7836410     chr3 170585356
+716397 2.848591e-20   chr1   7874808     chr3 170585356
+722033 3.441865e-20   chr1   7938219     chr3 170585356
+780754 2.127380e-19   chr1   7990398     chr3 170585356
+780885 2.134843e-19   chr1   8033528     chr3 170585356
+804320 4.359069e-19   chr1   8079086     chr3 170585356
+749658 8.232757e-20   chr1   8394308     chr3 170585356
+726826 4.014425e-20   chr1   8645082     chr3 170585356
+855660 1.909239e-18   chr1   9074882     chr3 170585356
+840376 1.240619e-18   chr1   9122758     chr3 170585356
+840377 1.240619e-18   chr1   9176916     chr3 170585356
+832902 1.006674e-18   chr1   9313128     chr3 170585356
+832903 1.006674e-18   chr1   9391264     chr3 170585356
+834138 1.043425e-18   chr1   9621179     chr3 170585356
+834139 1.043425e-18   chr1   9661956     chr3 170585356
+846155 1.467687e-18   chr8  94726721     chr3 169572344
+875666 3.302605e-18   chr8  95268022     chr3 169572344
+845909 1.456022e-18   chr8 101045810     chr3 169572344
+843662 1.363611e-18   chr8 101212196     chr3 169572344
+869949 2.818316e-18   chr8 103664494     chr3 169572344
+871059 2.907035e-18   chr8 104059266     chr3 169572344
+866331 2.545658e-18   chr8 104149381     chr3 169572344
+866332 2.545658e-18   chr8 104197726     chr3 169572344
+799281 3.736591e-19   chr8 104327880     chr3 169572344
+810792 5.262029e-19   chr8 104389500     chr3 169572344
+770115 1.553630e-19   chr8 104419168     chr3 169572344
+761689 1.197337e-19   chr8 104441310     chr3 169572344
+810573 5.230726e-19   chr8 104889214     chr3 169572344
+> 
+> q(save = "no")
+> proc.time()
+   user  system elapsed 
+ 55.826   0.958  57.786 

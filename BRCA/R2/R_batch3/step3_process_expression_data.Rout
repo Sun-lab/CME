@@ -1,0 +1,245 @@
+
+R version 3.1.0 (2014-04-10) -- "Spring Dance"
+Copyright (C) 2014 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin13.1.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> normscore = function(vec) {
++   len  = length(na.omit(vec))+1
++   rank = rank(na.omit(vec))
++   ties = (rank - floor(rank)) > 0
++   new.vec = vec[!is.na(vec)]
++   new.vec[!ties]=qnorm(rank[!ties]/len)
++   new.vec[ties] =0.5*(qnorm((rank[ties]+0.5)/len)+qnorm((rank[ties]-0.5)/len))
++   vec[!is.na(vec)] = new.vec
++   vec
++ }
+> 
+> # ----------------------------------------------------------------------
+> # read in data
+> # ----------------------------------------------------------------------
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/BRCA/_data2")
+> 
+> datE = read.table(file = "expression_log_TReC.txt",
++ sep = "\t", header = TRUE, as.is = TRUE)
+> dim(datE)
+[1] 15816   406
+> datE[1:2, 1:5]
+       id        A0SE        A0SF        A0SG        A0SH
+1 ?|10357 -0.86700645 -0.89707264 -1.21189353 -1.14340258
+2 ?|10431 -0.01774985  0.03819077 -0.01972301 -0.05192673
+> 
+> 
+> cDat = read.table(file="cov_EM.txt", sep = "\t",
++ header = TRUE, as.is = TRUE)
+> 
+> dim(cDat)
+[1]  38 406
+> cDat[1:5, 1:5]
+  id A0SE A0SF A0SG A0SH
+1 A2    0    0    0    0
+2 A7    0    0    0    0
+3 A8    0    0    0    0
+4 AC    0    0    0    0
+5 AN    0    0    0    0
+> cDat$id
+ [1] "A2"       "A7"       "A8"       "AC"       "AN"       "AO"      
+ [7] "AQ"       "AR"       "B6"       "BH"       "D8"       "E2"      
+[13] "E9"       "EW"       "GM"       "A084"     "A109"     "A10J"    
+[19] "A12P"     "A137"     "A13Q"     "A144"     "A14D"     "A14M"    
+[25] "A157"     "A169"     "A16F"     "A17B"     "A180"     "A18M"    
+[31] "A19W"     "A213"     "A21T"     "A22K"     "age"      "noHM_PC1"
+[37] "noHM_PC2" "noHM_PC3"
+> 
+> X = data.matrix(t(cDat[, -1]))
+> dim(X)
+[1] 405  38
+> X[1:5, 1:5]
+     [,1] [,2] [,3] [,4] [,5]
+A0SE    0    0    0    0    0
+A0SF    0    0    0    0    0
+A0SG    0    0    0    0    0
+A0SH    0    0    0    0    0
+A0SI    0    0    0    0    0
+> 
+> # ----------------------------------------------------------------------
+> # find wheher some genes that have outliers
+> # ----------------------------------------------------------------------
+> 
+> pDat = data.matrix(datE[,-1])
+> dim(pDat)
+[1] 15816   405
+> 
+> 
+> # ----------------------------------------------------------------------
+> # (95% - median)/IQR
+> # ----------------------------------------------------------------------
+> 
+> probs = c(0, 0.25, 0.5, 0.75, 1)
+> qs = apply(pDat, 1, quantile, probs = probs, na.rm=TRUE)
+> 
+> dim(qs)
+[1]     5 15816
+> qs = t(qs)
+> qs[1:5,]
+             0%        25%         50%         75%        100%
+[1,] -1.5697434 -1.1594562 -1.05836769 -0.95396049 -0.45504480
+[2,] -0.4987772 -0.1520801 -0.05974374  0.02077265  0.65432225
+[3,] -1.6491450 -1.0225460 -0.86522007 -0.68563392  0.07514229
+[4,] -3.2104523 -2.4216787 -2.26370567 -2.13130448 -1.54308409
+[5,] -1.1036868 -0.3740052 -0.15596938  0.07308713  0.75311489
+> 
+> summary(qs)
+       0%               25%               50%                75%          
+ Min.   :-3.7992   Min.   :-3.5678   Min.   :-3.36401   Min.   :-2.23397  
+ 1st Qu.:-2.4239   1st Qu.:-1.3517   1st Qu.:-1.09696   1st Qu.:-0.86321  
+ Median :-1.2755   Median :-0.6020   Median :-0.44607   Median :-0.29692  
+ Mean   :-1.5606   Mean   :-0.8032   Mean   :-0.60828   Mean   :-0.41760  
+ 3rd Qu.:-0.6521   3rd Qu.:-0.1565   3rd Qu.:-0.03137   3rd Qu.: 0.09929  
+ Max.   : 1.3881   Max.   : 1.7746   Max.   : 1.98090   Max.   : 2.20133  
+      100%         
+ Min.   :-1.89038  
+ 1st Qu.:-0.04466  
+ Median : 0.35567  
+ Mean   : 0.33933  
+ 3rd Qu.: 0.72204  
+ Max.   : 3.27120  
+> 
+> IQR = qs[,4] - qs[,2]
+> qs2 = qs[,c(1,5)]
+> 
+> qs2 = (qs2 - qs[,3])/IQR
+> dim(qs2)
+[1] 15816     2
+> qs2[1:2,]
+            0%     100%
+[1,] -2.488499 2.935939
+[2,] -2.539927 4.131064
+> 
+> outlier = apply(abs(qs2), 1, max)
+> 
+> summary(outlier)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+ 0.8208  2.5360  2.9520  3.1460  3.5190 13.3200 
+> 
+> table(outlier > 5)
+
+FALSE  TRUE 
+15085   731 
+> table(outlier > 6)
+
+FALSE  TRUE 
+15567   249 
+> table(outlier > 7)
+
+FALSE  TRUE 
+15727    89 
+> table(outlier > 8)
+
+FALSE  TRUE 
+15778    38 
+> table(outlier > 10)
+
+FALSE  TRUE 
+15806    10 
+> table(outlier > 15)
+
+FALSE 
+15816 
+> 
+> # ----------------------------------------------------------------------
+> # quantile transform expression data
+> # ----------------------------------------------------------------------
+> 
+> pDatN = t(apply(pDat, 1, normscore))
+> dim(pDatN)
+[1] 15816   405
+> pDatN[1:2,1:5]
+          A0SE      A0SF       A0SG        A0SH       A0SI
+[1,] 1.1355197 0.9641407 -1.0144987 -0.50186349 -1.2485693
+[2,] 0.3661064 0.8001130  0.3398226  0.08654337 -0.3463708
+> 
+> summary(apply(pDatN, 1, mean, na.rm=T))
+      Min.    1st Qu.     Median       Mean    3rd Qu.       Max. 
+-1.815e-08  0.000e+00  0.000e+00  1.260e-13  0.000e+00  2.014e-08 
+> summary(apply(pDatN, 1, sd, na.rm=T))
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+ 0.9884  0.9884  0.9884  0.9884  0.9884  0.9884 
+> 
+> pDatN = data.frame(id=datE$id, pDatN)
+> dim(pDatN)
+[1] 15816   406
+> pDatN[1:2,1:5]
+       id      A0SE      A0SF       A0SG        A0SH
+1 ?|10357 1.1355197 0.9641407 -1.0144987 -0.50186349
+2 ?|10431 0.3661064 0.8001130  0.3398226  0.08654337
+> 
+> write.table(pDatN, file = "expression_log_TReC_qnorm.txt", append = FALSE,
++   quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
+> 
+> 
+> # ----------------------------------------------------------------------
+> # normalize data after removing copy number effects
+> # ----------------------------------------------------------------------
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/BRCA/_data2")
+> 
+> datE = read.table(file = "expression_log_TReC_rm_cn.txt",
++ sep = "\t", header = TRUE, as.is = TRUE)
+> dim(datE)
+[1] 15284   406
+> datE[1:2, 1:5]
+       id      A0SE      A0SF        A0SG        A0SH
+1 ?|10357 0.1823580 0.1561428 -0.16017370 -0.09417780
+2 ?|10431 0.0460712 0.0121959  0.03317719 -0.00107418
+> 
+> pDat = data.matrix(datE[,-1])
+> dim(pDat)
+[1] 15284   405
+> 
+> pDatN = t(apply(pDat, 1, normscore))
+> dim(pDatN)
+[1] 15284   405
+> pDatN[1:2,1:5]
+          A0SE      A0SF       A0SG        A0SH       A0SI
+[1,] 1.0785505 0.9641407 -1.0248823 -0.55871729 -1.2900182
+[2,] 0.4307273 0.1502124  0.3499607  0.04990386 -0.4931727
+> 
+> summary(apply(pDatN, 1, mean, na.rm=T))
+      Min.    1st Qu.     Median       Mean    3rd Qu.       Max. 
+-8.486e-17 -2.174e-17 -2.157e-17 -2.071e-17 -2.150e-17  3.084e-17 
+> summary(apply(pDatN, 1, sd, na.rm=T))
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+ 0.9880  0.9884  0.9884  0.9884  0.9884  0.9884 
+> 
+> pDatN = data.frame(id=datE$id, pDatN)
+> dim(pDatN)
+[1] 15284   406
+> pDatN[1:2,1:5]
+       id      A0SE      A0SF       A0SG        A0SH
+1 ?|10357 1.0785505 0.9641407 -1.0248823 -0.55871729
+2 ?|10431 0.4307273 0.1502124  0.3499607  0.04990386
+> 
+> write.table(pDatN, file = "expression_log_TReC_rm_cn_qnorm.txt", append = FALSE,
++ quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
+> 
+> 
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+213.108   6.164 272.304 

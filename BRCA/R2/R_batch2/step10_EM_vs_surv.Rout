@@ -1,0 +1,493 @@
+
+R version 3.1.0 (2014-04-10) -- "Spring Dance"
+Copyright (C) 2014 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin13.1.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> library(survival)
+Loading required package: splines
+> 
+> # ------------------------------------------------------------
+> # read in location annotation
+> # ------------------------------------------------------------
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/BRCA/_data2")
+> 
+> info = read.table("methylation_eQTM_info.txt", sep="\t", header=TRUE,
++                     as.is=TRUE, quote="")
+> dim(info)
+[1] 3861   22
+> info[1:2,]
+        Name Infinium_Design_Type Next_Base Color_Channel Genome_Build CHR
+1 cg21405929                    I         C           Grn           37   1
+2 cg17820022                    I         A           Red           37   1
+  MAPINFO Strand Random_Loci Methyl27_Loci UCSC_RefGene_Name
+1 2234751      R          NA            NA               SKI
+2 2425860      R          NA            NA             PLCH2
+  UCSC_RefGene_Accession UCSC_RefGene_Group UCSC_CpG_Islands_Name
+1              NM_003036               Body  chr1:2235308-2235667
+2              NM_014638               Body                      
+  Relation_to_UCSC_CpG_Island Phantom DMR Enhancer        HMM_Island
+1                     N_Shore                   No 1:2223795-2225771
+2                        None                   No 1:2415711-2415802
+  Regulatory_Feature_Name        Regulatory_Feature_Group DHS
+1                                                          No
+2       1:2425223-2425966 Unclassified_Cell_type_specific  No
+> 
+> pval = read.table("methylation_eQTM_pval.txt", sep="\t", header=TRUE,
++                     as.is=TRUE, quote="")
+> 
+> dim(pval)
+[1] 5147    6
+> pval[1:2,]
+         SNP       gene       beta    t.stat       p.value           FDR
+1 cg04234412 GSTT1|2952 -0.6870477 -68.49639 2.503123e-206 1.508537e-196
+2 cg12419862 GSTT1|2952 -1.0134434 -53.23052 5.196648e-171 1.565911e-161
+> 
+> table(pval$SNP %in% info$Name)
+
+FALSE  TRUE 
+  859  4288 
+> pval = pval[which(pval$SNP %in% info$Name),]
+> dim(pval)
+[1] 4288    6
+> 
+> table(info$Genome_Build)
+
+  37 
+3861 
+> 
+> # ------------------------------------------------------------
+> # read in clinical information, check survival time after
+> # conditioning on stage and plate will make the model
+> # unidentifiable. so we will not consider these covariates.
+> # ------------------------------------------------------------
+> 
+> ff1  = "patient_brca_female_Caucasian_EMC_info_absolute.txt"
+> 
+> pInfo = read.table(ff1, sep = "\t", header=TRUE, as.is=TRUE)
+> dim(pInfo)
+[1] 405  24
+> pInfo[1:2,]
+  bcr_patient_barcode patient_id tissue_source_site birth_days_to
+1        TCGA-A1-A0SE       A0SE                 A1        -20717
+2        TCGA-A1-A0SF       A0SF                 A1        -19731
+  last_contact_days_to    death_days_to vital_status
+1                 1321 [Not Applicable]        Alive
+2                 1463 [Not Applicable]        Alive
+  ajcc_pathologic_tumor_stage tumor_status age_at_diagnosis
+1                     Stage I   TUMOR FREE               56
+2                   Stage IIA   TUMOR FREE               54
+           methylation_barcode
+1 TCGA-A1-A0SE-01A-11D-A10P-05
+2 TCGA-A1-A0SF-01A-11D-A145-05
+                                                                methylation_file
+1  jhu-usc.edu_BRCA.HumanMethylation450.4.lvl-3.TCGA-A1-A0SE-01A-11D-A10P-05.txt
+2 jhu-usc.edu_BRCA.HumanMethylation450.11.lvl-3.TCGA-A1-A0SF-01A-11D-A145-05.txt
+            expression_barcode
+1 TCGA-A1-A0SE-01A-11R-A084-07
+2 TCGA-A1-A0SF-01A-11R-A144-07
+                                                          expression_file
+1 unc.edu.a998e0ce-9248-460f-aabc-2dad452a1ff9.1153763.rsem.genes.results
+2 unc.edu.28089e15-5e2c-4e83-ba6c-62b3cb40e431.1170335.rsem.genes.results
+                    cn_barcode
+1 TCGA-A1-A0SE-01A-11D-A087-01
+2 TCGA-A1-A0SF-01A-11D-A141-01
+                                                                    cn_file
+1       SHAWM_p_TCGAb72_SNP_N_GenomeWideSNP_6_D12_698000.nocnv_hg19.seg.txt
+2 GOOFS_p_TCGA_b117_118_SNP_N_GenomeWideSNP_6_A01_778052.nocnv_hg19.seg.txt
+  abs_call abs_purity abs_ploidy abs_doublings pam50    noHM_PC1     noHM_PC2
+1   called       0.30       4.07             1  LumA 0.008748328 -0.008863467
+2   called       0.44       3.26             1  LumA 0.012842804  0.001399374
+     noHM_PC3
+1 -0.05572216
+2 -0.10074558
+> 
+> table(pInfo$vital_status)
+
+Alive  Dead 
+  360    45 
+> table(pInfo$vital_status, pInfo$death_days_to=="[Not Applicable]")
+       
+        FALSE TRUE
+  Alive     0  360
+  Dead     45    0
+> 
+> status = rep(0, nrow(pInfo))
+> status[which(pInfo$vital_status == "Dead")] = 1
+> 
+> time   = pInfo$last_contact_days_to
+> time[which(status==1)] = as.numeric(pInfo$death_days_to[which(status==1)])
+> summary(time)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+   -7.0   126.0   476.0   921.5  1361.0  6796.0 
+> time[time < 0] = 1
+> 
+> c1 = coxph(Surv(time, status) ~ pInfo$age_at_diagnosis)
+> c1
+Call:
+coxph(formula = Surv(time, status) ~ pInfo$age_at_diagnosis)
+
+
+                         coef exp(coef) se(coef)    z    p
+pInfo$age_at_diagnosis 0.0233      1.02   0.0107 2.17 0.03
+
+Likelihood ratio test=4.71  on 1 df, p=0.0299  n= 405, number of events= 45 
+> 
+> t1 = table(pInfo$ajcc_pathologic_tumor_stage, useNA="ifany")
+> t1
+
+   Stage I   Stage IA   Stage II  Stage IIA  Stage IIB  Stage III Stage IIIA 
+        43         28          2        129         92          1         74 
+Stage IIIB Stage IIIC   Stage IV    Stage X       <NA> 
+        11         17          5          1          2 
+> names(t1)
+ [1] "Stage I"    "Stage IA"   "Stage II"   "Stage IIA"  "Stage IIB" 
+ [6] "Stage III"  "Stage IIIA" "Stage IIIB" "Stage IIIC" "Stage IV"  
+[11] "Stage X"    NA          
+> 
+> stage = rep(NA, nrow(pInfo))
+> stage[which(pInfo$ajcc_pathologic_tumor_stage %in% names(t1)[1:2])] = 1
+> stage[which(pInfo$ajcc_pathologic_tumor_stage %in% names(t1)[3:5])] = 2
+> stage[which(pInfo$ajcc_pathologic_tumor_stage %in% names(t1)[6:9])] = 3
+> stage[which(pInfo$ajcc_pathologic_tumor_stage %in% names(t1)[10])]  = 4
+> 
+> c1  = coxph(Surv(time, status) ~ stage)
+> c1
+Call:
+coxph(formula = Surv(time, status) ~ stage)
+
+
+       coef exp(coef) se(coef)    z    p
+stage 0.308      1.36    0.199 1.54 0.12
+
+Likelihood ratio test=2.37  on 1 df, p=0.123  n= 402, number of events= 43 
+   (3 observations deleted due to missingness)
+> 
+> c1  = coxph(Surv(time, status) ~ tissue_source_site + pam50 + stage,
++             data=pInfo)
+Warning message:
+In fitter(X, Y, strats, offset, init, control, weights = weights,  :
+  Ran out of iterations and did not converge
+> c1
+Call:
+coxph(formula = Surv(time, status) ~ tissue_source_site + pam50 + 
+    stage, data = pInfo)
+
+
+                       coef exp(coef) se(coef)         z     p
+tissue_source_siteA2  9.864  1.92e+04 3.22e+02  3.06e-02 0.980
+tissue_source_siteA7 -2.024  1.32e-01 3.65e+03 -5.54e-04 1.000
+tissue_source_siteA8 -0.314  7.30e-01 6.52e+02 -4.82e-04 1.000
+tissue_source_siteAC 12.539  2.79e+05 3.22e+02  3.90e-02 0.970
+tissue_source_siteAN -9.264  9.48e-05 1.73e+05 -5.35e-05 1.000
+tissue_source_siteAO  9.243  1.03e+04 3.22e+02  2.87e-02 0.980
+tissue_source_siteAQ 13.968  1.16e+06 3.22e+02  4.34e-02 0.970
+tissue_source_siteAR  9.710  1.65e+04 3.22e+02  3.02e-02 0.980
+tissue_source_siteB6  9.370  1.17e+04 3.22e+02  2.91e-02 0.980
+tissue_source_siteBH 11.456  9.44e+04 3.22e+02  3.56e-02 0.970
+tissue_source_siteD8 -9.499  7.50e-05 4.88e+04 -1.95e-04 1.000
+tissue_source_siteE2  9.646  1.55e+04 3.22e+02  3.00e-02 0.980
+tissue_source_siteE9 -0.284  7.53e-01 8.58e+02 -3.31e-04 1.000
+tissue_source_siteEW 11.918  1.50e+05 3.22e+02  3.70e-02 0.970
+tissue_source_siteGM  9.531  1.38e+04 3.22e+02  2.96e-02 0.980
+pam50Her2             1.642  5.16e+00 7.01e-01  2.34e+00 0.019
+pam50LumA            -0.333  7.17e-01 6.20e-01 -5.37e-01 0.590
+pam50LumB             0.537  1.71e+00 6.45e-01  8.32e-01 0.410
+pam50Normal           1.125  3.08e+00 8.60e-01  1.31e+00 0.190
+stage                 0.525  1.69e+00 2.43e-01  2.15e+00 0.031
+
+Likelihood ratio test=57.8  on 20 df, p=1.58e-05  n= 402, number of events= 43 
+   (3 observations deleted due to missingness)
+> 
+> # ------------------------------------------------------------
+> # read in gene expression data and methylation data
+> # ------------------------------------------------------------
+> 
+> datE = read.table(file = "expression_log_TReC_rm_cn.txt", sep = "\t",
++ header = TRUE, as.is=TRUE)
+> dim(datE)
+[1] 15284   406
+> datE[1:2,1:5]
+       id      A0SE      A0SF        A0SG        A0SH
+1 ?|10357 0.1823580 0.1561428 -0.16017370 -0.09417780
+2 ?|10431 0.0460712 0.0121959  0.03317719 -0.00107418
+> 
+> datM = read.table(file = "methylation_mvalue.txt", sep = "\t",
++ header = TRUE, as.is=TRUE)
+> dim(datM)
+[1] 394309    406
+> datM[1:2,1:5]
+          id     A0SE     A0SF     A0SG     A0SH
+1 cg13869341 1.992940 2.569750 1.868150 2.305290
+2 cg14008030 0.602427 0.429316 0.250666 0.437007
+> 
+> table(names(datE) == names(datM))
+
+TRUE 
+ 406 
+> table(names(datE)[-1] == pInfo$patient_id)
+
+TRUE 
+ 405 
+> 
+> # ------------------------------------------------------------
+> # evaluate the association between gene expression,
+> # DNA methylation and survival time
+> # ------------------------------------------------------------
+> 
+> pDatE  = data.matrix(datE[,-1])
+> survPE = rep(NA, nrow(datE))
+> 
+> for(i in 1:nrow(datE)){
++   if(i %% 1000 == 0){
++     cat(i, date(), "\n")
++   }
++ 
++   e1 = pDatE[i,]
++   c1 = coxph(Surv(time, status) ~ e1)
++   s1 = summary(c1)
++   survPE[i] = s1$coef[5]
++ }
+1000 Wed Aug 12 18:08:19 2015 
+2000 Wed Aug 12 18:08:22 2015 
+3000 Wed Aug 12 18:08:28 2015 
+4000 Wed Aug 12 18:08:31 2015 
+5000 Wed Aug 12 18:08:34 2015 
+6000 Wed Aug 12 18:08:38 2015 
+7000 Wed Aug 12 18:08:41 2015 
+8000 Wed Aug 12 18:08:45 2015 
+9000 Wed Aug 12 18:08:49 2015 
+10000 Wed Aug 12 18:08:52 2015 
+11000 Wed Aug 12 18:08:55 2015 
+12000 Wed Aug 12 18:08:59 2015 
+13000 Wed Aug 12 18:09:02 2015 
+14000 Wed Aug 12 18:09:05 2015 
+15000 Wed Aug 12 18:09:08 2015 
+> 
+> 
+> pDatM  = data.matrix(datM[,-1])
+> survPM = rep(NA, nrow(datM))
+> 
+> for(i in 1:nrow(datM)){
++   
++   if(i %% 10000 == 0){
++     cat(i, date(), "\n")
++   }
++   
++   m1 = pDatM[i,]
++   c1 = coxph(Surv(time, status) ~ m1)
++   s1 = summary(c1)
++   survPM[i] = s1$coef[5]
++ 
++ }
+10000 Wed Aug 12 18:09:57 2015 
+20000 Wed Aug 12 18:10:37 2015 
+30000 Wed Aug 12 18:11:15 2015 
+40000 Wed Aug 12 18:11:56 2015 
+50000 Wed Aug 12 18:12:34 2015 
+60000 Wed Aug 12 18:13:15 2015 
+70000 Wed Aug 12 18:13:58 2015 
+80000 Wed Aug 12 18:14:39 2015 
+90000 Wed Aug 12 18:15:19 2015 
+100000 Wed Aug 12 18:15:59 2015 
+110000 Wed Aug 12 18:16:41 2015 
+120000 Wed Aug 12 18:17:23 2015 
+130000 Wed Aug 12 18:18:07 2015 
+140000 Wed Aug 12 18:18:50 2015 
+150000 Wed Aug 12 18:19:33 2015 
+160000 Wed Aug 12 18:20:14 2015 
+170000 Wed Aug 12 18:20:54 2015 
+180000 Wed Aug 12 18:21:33 2015 
+190000 Wed Aug 12 18:22:14 2015 
+200000 Wed Aug 12 18:22:56 2015 
+210000 Wed Aug 12 18:23:36 2015 
+220000 Wed Aug 12 18:24:16 2015 
+230000 Wed Aug 12 18:24:57 2015 
+240000 Wed Aug 12 18:25:37 2015 
+250000 Wed Aug 12 18:26:20 2015 
+260000 Wed Aug 12 18:27:02 2015 
+270000 Wed Aug 12 18:27:42 2015 
+280000 Wed Aug 12 18:28:25 2015 
+290000 Wed Aug 12 18:29:07 2015 
+300000 Wed Aug 12 18:29:50 2015 
+310000 Wed Aug 12 18:30:32 2015 
+320000 Wed Aug 12 18:31:14 2015 
+330000 Wed Aug 12 18:31:57 2015 
+340000 Wed Aug 12 18:32:39 2015 
+350000 Wed Aug 12 18:33:20 2015 
+360000 Wed Aug 12 18:34:01 2015 
+370000 Wed Aug 12 18:34:45 2015 
+380000 Wed Aug 12 18:35:27 2015 
+390000 Wed Aug 12 18:36:11 2015 
+There were 36 warnings (use warnings() to see them)
+> 
+> # ------------------------------------------------------------
+> # functions of qq plots
+> # ------------------------------------------------------------
+> 
+> 
+> qqp <- function(pvals, main, confidence=.95, cutoff=1){
++   
++   alpha = 1-confidence
++   n     = length(pvals)
++   
++   pvals[is.na(pvals)]=1
++   pvals=sort(pvals)
++   
++   k=c(1:n)
++   
++   lower = cutoff*qbeta(alpha/2, k, n+1-k)
++   upper = cutoff*qbeta((1-alpha/2), k, n+1-k)
++   
++   expected = cutoff*k/(n+1)
++   
++   biggest= max(-log10(pvals), -log10(expected))
++   
++   plot(-log10(expected), -log10(pvals), xlim=c(0,biggest),
++   ylim=c(0,biggest), pch=20, xlab="-log10(expected p-value)",
++   ylab="-log10(observed p-value)", cex=0.6, bty="n",
++   main=main, col="darkgrey")
++   
++   lines(-log10(expected), -log10(lower), lty=2)
++   lines(-log10(expected), -log10(upper), lty=2)
++   
++ }
+> 
+> qqp.add <- function(pvals, cutoff=1, col="red"){
++   
++   n = length(pvals)
++   
++   pvals[is.na(pvals)]=1
++   pvals=sort(pvals)
++   
++   k=c(1:n)
++   
++   expected = cutoff*k/(n+1)
++   biggest= max(-log10(pvals), -log10(expected))
++   
++   points(-log10(expected), -log10(pvals), col=col, pch=9, cex=0.6)
++   
++ }
+> 
+> # ------------------------------------------------------------
+> # check p-values of those eQTMs
+> # ------------------------------------------------------------
+> 
+> meths = unique(pval$SNP)
+> genes = unique(pval$gene)
+> 
+> 
+> surPE1 = survPE[match(genes, datE$id)]
+> surPM1 = survPM[match(meths, datM$id)]
+> 
+> length(surPE1)
+[1] 1023
+> length(surPM1)
+[1] 3861
+> 
+> png("../figures2/surv_eQTM.png", width=8, height=4, units="in", res=400)
+> par(mar=c(5,4,2,1), bty="n", mfrow=c(1,2))
+> qqp(survPE, "survival time vs. gene expression")
+> qqp.add(surPE1)
+> legend("bottomright", c("all genes", "genes of eQTMs"), bty="n",
++   col=c("darkgrey", "red"), pch=c(20, 9))
+> 
+> qqp(survPM, "survival time vs. DNA methylation")
+> qqp.add(surPM1)
+> legend("bottomright", c("all methy probes", "eQTMs"), bty="n",
++   col=c("darkgrey", "red"), pch=c(20, 9))
+> dev.off()
+null device 
+          1 
+> 
+> # ------------------------------------------------------------
+> # check p-values of those hot methy-probes
+> # ------------------------------------------------------------
+> 
+> mHot = read.table("methylation_hot.txt", sep="\t", header=T, as.is=T, quote="")
+> dim(mHot)
+[1] 1351   24
+> mHot[1:2,]
+  methyProbe freqIn1e60 medianPvalIn1e60 Infinium_Design_Type Next_Base
+1 cg11893955        221         76.21343                    I         A
+2 cg11180921        195         74.09874                    I         A
+  Color_Channel Genome_Build CHR  MAPINFO Strand Random_Loci Methyl27_Loci
+1           Red           37   8 28918821      F          NA            NA
+2           Red           37  11 57090226      R          NA            NA
+  UCSC_RefGene_Name UCSC_RefGene_Accession UCSC_RefGene_Group
+1                                                            
+2          TNKS1BP1              NM_033396              5'UTR
+    UCSC_CpG_Islands_Name Relation_to_UCSC_CpG_Island Phantom DMR Enhancer
+1                                                None                   No
+2 chr11:57091614-57092831                     N_Shore                  Yes
+           HMM_Island Regulatory_Feature_Name Regulatory_Feature_Group DHS
+1 8:28974740-28975154     8:28917821-28919461      Promoter_Associated  No
+2                                                                       No
+> 
+> surPM1 = survPM[match(mHot$methyProbe, datM$id)]
+> 
+> gene1e60 = read.table("gene1e60.txt", header=TRUE, sep="\t", as.is=TRUE)
+> dim(gene1e60)
+[1] 334   3
+> gene1e60[c(1:5,96:100,360:362),]
+              gene freqIn1e60 medianPvalIn1e60
+1       IL2RG|3561       2203         71.74399
+2      SASH3|54440       2143         70.89344
+3    ARHGAP25|9938       2020         69.88745
+4      IKZF1|10320       2004         70.41002
+5         ITK|3702       1889         71.18996
+96    GIMAP4|55303        607         64.51648
+97      HCST|10870        603         65.00205
+98       GFI1|2672        601         66.75586
+99    GIMAP5|55340        588         64.65797
+100    SLAMF1|6504        582         67.19238
+NA            <NA>         NA               NA
+NA.1          <NA>         NA               NA
+NA.2          <NA>         NA               NA
+> 
+> gene100 = gene1e60[gene1e60$freqIn1e60 >= 100,]
+> dim(gene100)
+[1] 190   3
+> gene100[1:2,]
+         gene freqIn1e60 medianPvalIn1e60
+1  IL2RG|3561       2203         71.74399
+2 SASH3|54440       2143         70.89344
+> 
+> surPE1 = survPE[match(gene100$gene, datE$id)]
+> 
+> 
+> png("../figures2/surv_hotEM.png", width=8, height=4, units="in", res=400)
+> par(mar=c(5,4,2,1), bty="n", mfrow=c(1,2))
+> qqp(survPE, "survival time vs. gene expression")
+> qqp.add(surPE1)
+> legend("bottomright", c("all genes", "hot genes"), bty="n",
++ col=c("darkgrey", "red"), pch=c(20, 9))
+> 
+> qqp(survPM, "survival time vs. DNA methylation")
+> qqp.add(surPM1)
+> legend("bottomright", c("all methy probes", "hot methy probes"), bty="n",
++ col=c("darkgrey", "red"), pch=c(20, 9))
+> dev.off()
+null device 
+          1 
+> 
+> 
+> q(save = "no")
+> proc.time()
+    user   system  elapsed 
+2294.613   31.476 2350.551 

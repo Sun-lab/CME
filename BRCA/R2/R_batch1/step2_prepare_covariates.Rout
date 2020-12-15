@@ -1,0 +1,912 @@
+
+R version 3.1.0 (2014-04-10) -- "Spring Dance"
+Copyright (C) 2014 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin13.1.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> # ------------------------------------------------------------
+> # read in the information of the samples to be used
+> # ------------------------------------------------------------
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/BRCA")
+> 
+> ff0    = "_data2/patient_brca_female_Caucasian_EMC_info.txt"
+> emInfo = read.table(ff0, sep = "\t", header = TRUE, as.is=TRUE)
+> dim(emInfo)
+[1] 508  16
+> emInfo[1,]
+  bcr_patient_barcode patient_id tissue_source_site birth_days_to
+1        TCGA-3C-AAAU       AAAU                 3C        -20211
+  last_contact_days_to    death_days_to vital_status
+1                 3767 [Not Applicable]        Alive
+  ajcc_pathologic_tumor_stage tumor_status age_at_diagnosis
+1                     Stage X   WITH TUMOR               55
+           methylation_barcode
+1 TCGA-3C-AAAU-01A-11D-A41Q-05
+                                                                methylation_file
+1 jhu-usc.edu_BRCA.HumanMethylation450.35.lvl-3.TCGA-3C-AAAU-01A-11D-A41Q-05.txt
+            expression_barcode
+1 TCGA-3C-AAAU-01A-11R-A41B-07
+                                                          expression_file
+1 unc.edu.6ef883fc-81f3-4089-95e0-86904ffc0d38.2612141.rsem.genes.results
+                    cn_barcode
+1 TCGA-3C-AAAU-01A-11D-A41E-01
+                                                                        cn_file
+1 TAKEN_p_TCGAb_379_400_FFPE_NSP_GenomeWideSNP_6_F03_1513170.nocnv_hg19.seg.txt
+> 
+> table(is.na(emInfo$cn_file))
+
+FALSE  TRUE 
+  505     3 
+> colSums(is.na(emInfo))
+        bcr_patient_barcode                  patient_id 
+                          0                           0 
+         tissue_source_site               birth_days_to 
+                          0                           1 
+       last_contact_days_to               death_days_to 
+                         48                           1 
+               vital_status ajcc_pathologic_tumor_stage 
+                          0                           2 
+               tumor_status            age_at_diagnosis 
+                         84                           0 
+        methylation_barcode            methylation_file 
+                          0                           0 
+         expression_barcode             expression_file 
+                          0                           0 
+                 cn_barcode                     cn_file 
+                          3                           3 
+> 
+> emInfo = emInfo[which(!is.na(emInfo$cn_file)),]
+> dim(emInfo)
+[1] 505  16
+> emInfo[1,]
+  bcr_patient_barcode patient_id tissue_source_site birth_days_to
+1        TCGA-3C-AAAU       AAAU                 3C        -20211
+  last_contact_days_to    death_days_to vital_status
+1                 3767 [Not Applicable]        Alive
+  ajcc_pathologic_tumor_stage tumor_status age_at_diagnosis
+1                     Stage X   WITH TUMOR               55
+           methylation_barcode
+1 TCGA-3C-AAAU-01A-11D-A41Q-05
+                                                                methylation_file
+1 jhu-usc.edu_BRCA.HumanMethylation450.35.lvl-3.TCGA-3C-AAAU-01A-11D-A41Q-05.txt
+            expression_barcode
+1 TCGA-3C-AAAU-01A-11R-A41B-07
+                                                          expression_file
+1 unc.edu.6ef883fc-81f3-4089-95e0-86904ffc0d38.2612141.rsem.genes.results
+                    cn_barcode
+1 TCGA-3C-AAAU-01A-11D-A41E-01
+                                                                        cn_file
+1 TAKEN_p_TCGAb_379_400_FFPE_NSP_GenomeWideSNP_6_F03_1513170.nocnv_hg19.seg.txt
+> colSums(is.na(emInfo))
+        bcr_patient_barcode                  patient_id 
+                          0                           0 
+         tissue_source_site               birth_days_to 
+                          0                           1 
+       last_contact_days_to               death_days_to 
+                         48                           1 
+               vital_status ajcc_pathologic_tumor_stage 
+                          0                           2 
+               tumor_status            age_at_diagnosis 
+                         83                           0 
+        methylation_barcode            methylation_file 
+                          0                           0 
+         expression_barcode             expression_file 
+                          0                           0 
+                 cn_barcode                     cn_file 
+                          0                           0 
+> 
+> # ------------------------------------------------------------
+> # read in purity information from pan12 study
+> # ------------------------------------------------------------
+> 
+> ff0    = "../shared_data/pancan12/pancan12.sample_info_filtered.txt"
+> purity = read.table(ff0, sep = "\t", header = TRUE, as.is=TRUE)
+> dim(purity)
+[1] 4499   10
+> purity[1:2,]
+                       tcga_id disease samptype
+1 TCGA-BL-A13I-01A-11D-A13V-01    BLCA       TP
+2 TCGA-BL-A13J-01A-11D-A10T-01    BLCA       TP
+                                                   array segment_count
+1 HORNS_p_TCGA_b110_113_SNP_N_GenomeWideSNP_6_A06_772372            86
+2 AMAZE_p_TCGASNP_b86_87_88_N_GenomeWideSNP_6_C11_735468           333
+  level_3_qc abs_call abs_purity abs_ploidy abs_doublings
+1          1   called       0.33       2.07             0
+2          1   called       0.55       3.69             2
+> 
+> table(emInfo$cn_barcode %in% purity$tcga_id)
+
+FALSE  TRUE 
+   93   412 
+> emInfo = emInfo[which(emInfo$cn_barcode %in% purity$tcga_id),]
+> dim(emInfo)
+[1] 412  16
+> table(emInfo$cn_barcode %in% purity$tcga_id)
+
+TRUE 
+ 412 
+> 
+> purity = purity[match(emInfo$cn_barcode, purity$tcga_id),]
+> dim(purity)
+[1] 412  10
+> purity[1:2,]
+                         tcga_id disease samptype
+110 TCGA-A1-A0SE-01A-11D-A087-01    BRCA       TP
+111 TCGA-A1-A0SF-01A-11D-A141-01    BRCA       TP
+                                                     array segment_count
+110       SHAWM_p_TCGAb72_SNP_N_GenomeWideSNP_6_D12_698000           111
+111 GOOFS_p_TCGA_b117_118_SNP_N_GenomeWideSNP_6_A01_778052           121
+    level_3_qc abs_call abs_purity abs_ploidy abs_doublings
+110          1   called       0.30       4.07             1
+111          1   called       0.44       3.26             1
+> 
+> table(emInfo$cn_barcode == purity$tcga_id)
+
+TRUE 
+ 412 
+> table(purity$abs_call)
+
+         called    high entropy high non-clonal 
+            372               5              35 
+> 
+> emInfo = cbind(emInfo, purity[,7:10])
+> 
+> # ------------------------------------------------------------
+> # read in subtype information
+> # ------------------------------------------------------------
+> 
+> ff1     = "_data2/ABSOLUTE_purity_and_ploidy_BRCA.txt"
+> subtype = read.table(ff1, sep = "\t", header = TRUE, as.is=TRUE)
+> dim(subtype)
+[1] 1007    6
+> subtype[1:2,]
+  individual_id Path.Score PAM50.Call Freeze_668 absolute_extract_ploidy
+1  TCGA-A1-A0SB      Other     Normal       TRUE                    2.00
+2  TCGA-A1-A0SD        IDC       LumA       TRUE                    1.92
+  absolute_extract_purity
+1                    0.17
+2                    0.51
+> 
+> table(emInfo$bcr_patient_barcode %in% subtype$individual_id)
+
+TRUE 
+ 412 
+> 
+> subtype = subtype[match(emInfo$bcr_patient_barcode, subtype$individual_id),]
+> dim(subtype)
+[1] 412   6
+> subtype[1:2,]
+  individual_id    Path.Score PAM50.Call Freeze_668 absolute_extract_ploidy
+3  TCGA-A1-A0SE Mixed.IDC.ILC       LumA       TRUE                    4.07
+4  TCGA-A1-A0SF           IDC       LumA       TRUE                    3.26
+  absolute_extract_purity
+3                    0.30
+4                    0.44
+> table(emInfo$bcr_patient_barcode == subtype$individual_id)
+
+TRUE 
+ 412 
+> 
+> fig0  = "../shared_data/pancan12/pan12_purity_ploidy_checking.pdf"
+> 
+> pdf(fig0, width=8, height=4)
+> par(mar=c(5,4,1,1), mfrow=c(1,2), bty="n")
+> plot(emInfo$abs_purity, subtype$absolute_extract_purity)
+> plot(emInfo$abs_ploidy, subtype$absolute_extract_ploidy)
+> dev.off()
+null device 
+          1 
+> 
+> emInfo = cbind(emInfo, subtype$PAM50.Call)
+> dim(emInfo)
+[1] 412  21
+> names(emInfo)[21] = "pam50"
+> emInfo[1:2,]
+  bcr_patient_barcode patient_id tissue_source_site birth_days_to
+4        TCGA-A1-A0SE       A0SE                 A1        -20717
+5        TCGA-A1-A0SF       A0SF                 A1        -19731
+  last_contact_days_to    death_days_to vital_status
+4                 1321 [Not Applicable]        Alive
+5                 1463 [Not Applicable]        Alive
+  ajcc_pathologic_tumor_stage tumor_status age_at_diagnosis
+4                     Stage I   TUMOR FREE               56
+5                   Stage IIA   TUMOR FREE               54
+           methylation_barcode
+4 TCGA-A1-A0SE-01A-11D-A10P-05
+5 TCGA-A1-A0SF-01A-11D-A145-05
+                                                                methylation_file
+4  jhu-usc.edu_BRCA.HumanMethylation450.4.lvl-3.TCGA-A1-A0SE-01A-11D-A10P-05.txt
+5 jhu-usc.edu_BRCA.HumanMethylation450.11.lvl-3.TCGA-A1-A0SF-01A-11D-A145-05.txt
+            expression_barcode
+4 TCGA-A1-A0SE-01A-11R-A084-07
+5 TCGA-A1-A0SF-01A-11R-A144-07
+                                                          expression_file
+4 unc.edu.a998e0ce-9248-460f-aabc-2dad452a1ff9.1153763.rsem.genes.results
+5 unc.edu.28089e15-5e2c-4e83-ba6c-62b3cb40e431.1170335.rsem.genes.results
+                    cn_barcode
+4 TCGA-A1-A0SE-01A-11D-A087-01
+5 TCGA-A1-A0SF-01A-11D-A141-01
+                                                                    cn_file
+4       SHAWM_p_TCGAb72_SNP_N_GenomeWideSNP_6_D12_698000.nocnv_hg19.seg.txt
+5 GOOFS_p_TCGA_b117_118_SNP_N_GenomeWideSNP_6_A01_778052.nocnv_hg19.seg.txt
+  abs_call abs_purity abs_ploidy abs_doublings pam50
+4   called       0.30       4.07             1  LumA
+5   called       0.44       3.26             1  LumA
+> 
+> # ------------------------------------------------------------
+> # here we only keep those samples with purity and subtypes
+> # for the ease of comparision when we do eQTL mapping
+> # with or without purity estimates
+> # ------------------------------------------------------------
+> 
+> colSums(is.na(emInfo))
+        bcr_patient_barcode                  patient_id 
+                          0                           0 
+         tissue_source_site               birth_days_to 
+                          0                           0 
+       last_contact_days_to               death_days_to 
+                         45                           0 
+               vital_status ajcc_pathologic_tumor_stage 
+                          0                           2 
+               tumor_status            age_at_diagnosis 
+                         80                           0 
+        methylation_barcode            methylation_file 
+                          0                           0 
+         expression_barcode             expression_file 
+                          0                           0 
+                 cn_barcode                     cn_file 
+                          0                           0 
+                   abs_call                  abs_purity 
+                          0                           0 
+                 abs_ploidy               abs_doublings 
+                          0                           0 
+                      pam50 
+                          5 
+> 
+> emInfo = emInfo[which(!is.na(emInfo$pam50)),]
+> 
+> dim(emInfo)
+[1] 407  21
+> emInfo[1:2,]
+  bcr_patient_barcode patient_id tissue_source_site birth_days_to
+4        TCGA-A1-A0SE       A0SE                 A1        -20717
+5        TCGA-A1-A0SF       A0SF                 A1        -19731
+  last_contact_days_to    death_days_to vital_status
+4                 1321 [Not Applicable]        Alive
+5                 1463 [Not Applicable]        Alive
+  ajcc_pathologic_tumor_stage tumor_status age_at_diagnosis
+4                     Stage I   TUMOR FREE               56
+5                   Stage IIA   TUMOR FREE               54
+           methylation_barcode
+4 TCGA-A1-A0SE-01A-11D-A10P-05
+5 TCGA-A1-A0SF-01A-11D-A145-05
+                                                                methylation_file
+4  jhu-usc.edu_BRCA.HumanMethylation450.4.lvl-3.TCGA-A1-A0SE-01A-11D-A10P-05.txt
+5 jhu-usc.edu_BRCA.HumanMethylation450.11.lvl-3.TCGA-A1-A0SF-01A-11D-A145-05.txt
+            expression_barcode
+4 TCGA-A1-A0SE-01A-11R-A084-07
+5 TCGA-A1-A0SF-01A-11R-A144-07
+                                                          expression_file
+4 unc.edu.a998e0ce-9248-460f-aabc-2dad452a1ff9.1153763.rsem.genes.results
+5 unc.edu.28089e15-5e2c-4e83-ba6c-62b3cb40e431.1170335.rsem.genes.results
+                    cn_barcode
+4 TCGA-A1-A0SE-01A-11D-A087-01
+5 TCGA-A1-A0SF-01A-11D-A141-01
+                                                                    cn_file
+4       SHAWM_p_TCGAb72_SNP_N_GenomeWideSNP_6_D12_698000.nocnv_hg19.seg.txt
+5 GOOFS_p_TCGA_b117_118_SNP_N_GenomeWideSNP_6_A01_778052.nocnv_hg19.seg.txt
+  abs_call abs_purity abs_ploidy abs_doublings pam50
+4   called       0.30       4.07             1  LumA
+5   called       0.44       3.26             1  LumA
+> 
+> colSums(is.na(emInfo))
+        bcr_patient_barcode                  patient_id 
+                          0                           0 
+         tissue_source_site               birth_days_to 
+                          0                           0 
+       last_contact_days_to               death_days_to 
+                         45                           0 
+               vital_status ajcc_pathologic_tumor_stage 
+                          0                           2 
+               tumor_status            age_at_diagnosis 
+                         80                           0 
+        methylation_barcode            methylation_file 
+                          0                           0 
+         expression_barcode             expression_file 
+                          0                           0 
+                 cn_barcode                     cn_file 
+                          0                           0 
+                   abs_call                  abs_purity 
+                          0                           0 
+                 abs_ploidy               abs_doublings 
+                          0                           0 
+                      pam50 
+                          0 
+> 
+> # ------------------------------------------------------------
+> # obtain sample information of methylation data
+> # because the column of 'methylation_barcode' may contain the
+> # barcode for more than one sample, I used the column of
+> # methylation_file here.
+> # ------------------------------------------------------------
+> 
+> samM = strsplit(emInfo$methylation_file, split="-", fixed=TRUE)
+> table(sapply(samM, length))
+
+  9 
+407 
+> samM = matrix(unlist(samM), byrow=TRUE, ncol=9)
+> dim(samM)
+[1] 407   9
+> samM[1:2,]
+     [,1]  [,2]                                      [,3]     [,4] [,5]   [,6] 
+[1,] "jhu" "usc.edu_BRCA.HumanMethylation450.4.lvl"  "3.TCGA" "A1" "A0SE" "01A"
+[2,] "jhu" "usc.edu_BRCA.HumanMethylation450.11.lvl" "3.TCGA" "A1" "A0SF" "01A"
+     [,7]  [,8]   [,9]    
+[1,] "11D" "A10P" "05.txt"
+[2,] "11D" "A145" "05.txt"
+> table(samM[,1])
+
+jhu 
+407 
+> table(samM[,3])
+
+3.TCGA 
+   407 
+> table(samM[,9])
+
+05.txt 
+   407 
+> 
+> table(samM[,2], samM[,8])
+                                         
+                                          A10A A10N A10P A12R A138 A13K A145
+  usc.edu_BRCA.HumanMethylation450.10.lvl    0    0    0    0    0   52    0
+  usc.edu_BRCA.HumanMethylation450.11.lvl    0    0    0    0    0    0   22
+  usc.edu_BRCA.HumanMethylation450.12.lvl    0    0    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.13.lvl    0    0    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.14.lvl    0    0    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.15.lvl    0    0    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.16.lvl    0    0    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.17.lvl    0    0    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.18.lvl    0    0    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.19.lvl    0    0    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.20.lvl    0    0    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.21.lvl    0    0    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.22.lvl    0    0    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.23.lvl    0    0    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.3.lvl     0    0   34    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.4.lvl     0    0   36    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.5.lvl    30    0    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.6.lvl     0   18    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.8.lvl     0    0    0   30    0    0    0
+  usc.edu_BRCA.HumanMethylation450.9.lvl     0    0    0    0   10    0    0
+                                         
+                                          A14H A14N A161 A16A A16G A17F A17Z
+  usc.edu_BRCA.HumanMethylation450.10.lvl    0    0    1    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.11.lvl    0    0    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.12.lvl   19    0    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.13.lvl    0   28    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.14.lvl    0    0   22    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.15.lvl    0    0    0   36    0    0    0
+  usc.edu_BRCA.HumanMethylation450.16.lvl    0    0    0    0   19    0    0
+  usc.edu_BRCA.HumanMethylation450.17.lvl    0    0    0    0    0    4    0
+  usc.edu_BRCA.HumanMethylation450.18.lvl    0    0    0    0    0    0   10
+  usc.edu_BRCA.HumanMethylation450.19.lvl    0    0    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.20.lvl    0    0    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.21.lvl    0    0    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.22.lvl    0    0    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.23.lvl    0    0    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.3.lvl     0    0    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.4.lvl     0    0    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.5.lvl     0    0    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.6.lvl     0    0    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.8.lvl     0    0    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.9.lvl     0    0    0    0    0    0    0
+                                         
+                                          A18O A19Z A212 A21R A22B
+  usc.edu_BRCA.HumanMethylation450.10.lvl    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.11.lvl    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.12.lvl    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.13.lvl    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.14.lvl    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.15.lvl    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.16.lvl    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.17.lvl    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.18.lvl    0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.19.lvl   12    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.20.lvl    0    5    0    0    0
+  usc.edu_BRCA.HumanMethylation450.21.lvl    0    0    7    0    0
+  usc.edu_BRCA.HumanMethylation450.22.lvl    0    0    0    4    0
+  usc.edu_BRCA.HumanMethylation450.23.lvl    0    0    0    0    8
+  usc.edu_BRCA.HumanMethylation450.3.lvl     0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.4.lvl     0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.5.lvl     0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.6.lvl     0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.8.lvl     0    0    0    0    0
+  usc.edu_BRCA.HumanMethylation450.9.lvl     0    0    0    0    0
+> 
+> samM = samM[,4:8]
+> dim(samM)
+[1] 407   5
+> samM[1:2,]
+     [,1] [,2]   [,3]  [,4]  [,5]  
+[1,] "A1" "A0SE" "01A" "11D" "A10P"
+[2,] "A1" "A0SF" "01A" "11D" "A145"
+> 
+> samM = data.frame(samM, stringsAsFactors=FALSE)
+> names(samM) = c("institution", "patientID", "type", "portion", "plate")
+> dim(samM)
+[1] 407   5
+> samM[1:2,]
+  institution patientID type portion plate
+1          A1      A0SE  01A     11D  A10P
+2          A1      A0SF  01A     11D  A145
+> 
+> length(unique(samM$patientID))
+[1] 407
+> table(samM$institution == emInfo$tissue_source_site)
+
+TRUE 
+ 407 
+> 
+> apply(samM[,-2], 2, function(v){sort(table(v))})
+$institution
+v
+GI HN A8 AQ A1 AN A7 AC GM EW AO B6 E2 A2 E9 AR D8 BH 
+ 1  1  4  4  8  9 12 12 12 13 16 20 31 36 48 51 58 71 
+
+$type
+v
+01B 01A 
+  6 401 
+
+$portion
+v
+41D 51D 61D 13D 22D 31D 12D 21D 11D 
+  1   1   1   4   8  18  25  48 301 
+
+$plate
+v
+A17F A21R A19Z A212 A22B A138 A17Z A18O A10N A14H A16G A145 A161 A14N A10A A12R 
+   4    4    5    7    8   10   10   12   18   19   19   22   23   28   30   30 
+A16A A13K A10P 
+  36   52   70 
+
+> 
+> w2rm   = which(samM$institution=="GI" | samM$institution=="HN")
+> emInfo = emInfo[-w2rm,]
+> 
+> dim(emInfo)
+[1] 405  21
+> emInfo[1:2,]
+  bcr_patient_barcode patient_id tissue_source_site birth_days_to
+4        TCGA-A1-A0SE       A0SE                 A1        -20717
+5        TCGA-A1-A0SF       A0SF                 A1        -19731
+  last_contact_days_to    death_days_to vital_status
+4                 1321 [Not Applicable]        Alive
+5                 1463 [Not Applicable]        Alive
+  ajcc_pathologic_tumor_stage tumor_status age_at_diagnosis
+4                     Stage I   TUMOR FREE               56
+5                   Stage IIA   TUMOR FREE               54
+           methylation_barcode
+4 TCGA-A1-A0SE-01A-11D-A10P-05
+5 TCGA-A1-A0SF-01A-11D-A145-05
+                                                                methylation_file
+4  jhu-usc.edu_BRCA.HumanMethylation450.4.lvl-3.TCGA-A1-A0SE-01A-11D-A10P-05.txt
+5 jhu-usc.edu_BRCA.HumanMethylation450.11.lvl-3.TCGA-A1-A0SF-01A-11D-A145-05.txt
+            expression_barcode
+4 TCGA-A1-A0SE-01A-11R-A084-07
+5 TCGA-A1-A0SF-01A-11R-A144-07
+                                                          expression_file
+4 unc.edu.a998e0ce-9248-460f-aabc-2dad452a1ff9.1153763.rsem.genes.results
+5 unc.edu.28089e15-5e2c-4e83-ba6c-62b3cb40e431.1170335.rsem.genes.results
+                    cn_barcode
+4 TCGA-A1-A0SE-01A-11D-A087-01
+5 TCGA-A1-A0SF-01A-11D-A141-01
+                                                                    cn_file
+4       SHAWM_p_TCGAb72_SNP_N_GenomeWideSNP_6_D12_698000.nocnv_hg19.seg.txt
+5 GOOFS_p_TCGA_b117_118_SNP_N_GenomeWideSNP_6_A01_778052.nocnv_hg19.seg.txt
+  abs_call abs_purity abs_ploidy abs_doublings pam50
+4   called       0.30       4.07             1  LumA
+5   called       0.44       3.26             1  LumA
+> colSums(is.na(emInfo))
+        bcr_patient_barcode                  patient_id 
+                          0                           0 
+         tissue_source_site               birth_days_to 
+                          0                           0 
+       last_contact_days_to               death_days_to 
+                         45                           0 
+               vital_status ajcc_pathologic_tumor_stage 
+                          0                           2 
+               tumor_status            age_at_diagnosis 
+                         79                           0 
+        methylation_barcode            methylation_file 
+                          0                           0 
+         expression_barcode             expression_file 
+                          0                           0 
+                 cn_barcode                     cn_file 
+                          0                           0 
+                   abs_call                  abs_purity 
+                          0                           0 
+                 abs_ploidy               abs_doublings 
+                          0                           0 
+                      pam50 
+                          0 
+> 
+> samM = samM[-w2rm,]
+> dim(samM)
+[1] 405   5
+> samM[1:2,]
+  institution patientID type portion plate
+1          A1      A0SE  01A     11D  A10P
+2          A1      A0SF  01A     11D  A145
+> 
+> apply(samM[,-2], 2, function(v){sort(table(v))})
+$institution
+v
+A8 AQ A1 AN A7 AC GM EW AO B6 E2 A2 E9 AR D8 BH 
+ 4  4  8  9 12 12 12 13 16 20 31 36 48 51 58 71 
+
+$type
+v
+01B 01A 
+  6 399 
+
+$portion
+v
+41D 51D 61D 13D 22D 31D 12D 21D 11D 
+  1   1   1   4   8  18  25  48 299 
+
+$plate
+v
+A17F A21R A19Z A212 A22B A138 A17Z A18O A10N A16G A14H A145 A161 A14N A10A A12R 
+   4    4    5    7    8   10   10   11   18   18   19   22   23   28   30   30 
+A16A A13K A10P 
+  36   52   70 
+
+> 
+> # ------------------------------------------------------------
+> # obtain sample information of gene expression data
+> # ------------------------------------------------------------
+> 
+> samE = strsplit(emInfo$expression_barcode, split="-", fixed=TRUE)
+> table(sapply(samE, length))
+
+  7 
+405 
+> samE = matrix(unlist(samE), byrow=TRUE, ncol=7)
+> dim(samE)
+[1] 405   7
+> samE[1,]
+[1] "TCGA" "A1"   "A0SE" "01A"  "11R"  "A084" "07"  
+> 
+> table(samE[,1])
+
+TCGA 
+ 405 
+> table(samE[,7])
+
+ 07 
+405 
+> 
+> samE = data.frame(samE[,2:6], stringsAsFactors=FALSE)
+> names(samE) = c("institution", "patientID", "type", "portion", "plate")
+> dim(samE)
+[1] 405   5
+> samE[1:2,]
+  institution patientID type portion plate
+1          A1      A0SE  01A     11R  A084
+2          A1      A0SF  01A     11R  A144
+> 
+> apply(samE[,-2], 2, function(v){sort(table(v))})
+$institution
+v
+A8 AQ A1 AN A7 AC GM EW AO B6 E2 A2 E9 AR D8 BH 
+ 4  4  8  9 12 12 12 13 16 20 31 36 48 51 58 71 
+
+$type
+v
+01B 01A 
+  6 399 
+
+$portion
+v
+41R 51R 61R 13R 22R 31R 12R 21R 11R 
+  1   1   1   4   8  18  25  48 299 
+
+$plate
+v
+A17B A21T A19W A213 A22K A137 A180 A18M A10J A16F A14D A144 A157 A14M A109 A12P 
+   4    4    5    7    8   10   10   11   18   18   19   22   23   28   30   30 
+A056 A084 A169 A13Q 
+  34   36   36   52 
+
+> 
+> table(samM$institution == samE$institution)
+
+TRUE 
+ 405 
+> table(samM$patientID == samE$patientID)
+
+TRUE 
+ 405 
+> table(samM$plate == samE$plate)
+
+FALSE 
+  405 
+> 
+> ## plate ID of DNA methylation almost perfectly nested
+> ## within the plateID of gene expression data, so we can
+> ## ignore the DNA methylation plate IDs
+> 
+> table(samM$plate, samE$plate)
+      
+       A056 A084 A109 A10J A12P A137 A13Q A144 A14D A14M A157 A169 A16F A17B
+  A10A    0    0   30    0    0    0    0    0    0    0    0    0    0    0
+  A10N    0    0    0   18    0    0    0    0    0    0    0    0    0    0
+  A10P   34   36    0    0    0    0    0    0    0    0    0    0    0    0
+  A12R    0    0    0    0   30    0    0    0    0    0    0    0    0    0
+  A138    0    0    0    0    0   10    0    0    0    0    0    0    0    0
+  A13K    0    0    0    0    0    0   52    0    0    0    0    0    0    0
+  A145    0    0    0    0    0    0    0   22    0    0    0    0    0    0
+  A14H    0    0    0    0    0    0    0    0   19    0    0    0    0    0
+  A14N    0    0    0    0    0    0    0    0    0   28    0    0    0    0
+  A161    0    0    0    0    0    0    0    0    0    0   23    0    0    0
+  A16A    0    0    0    0    0    0    0    0    0    0    0   36    0    0
+  A16G    0    0    0    0    0    0    0    0    0    0    0    0   18    0
+  A17F    0    0    0    0    0    0    0    0    0    0    0    0    0    4
+  A17Z    0    0    0    0    0    0    0    0    0    0    0    0    0    0
+  A18O    0    0    0    0    0    0    0    0    0    0    0    0    0    0
+  A19Z    0    0    0    0    0    0    0    0    0    0    0    0    0    0
+  A212    0    0    0    0    0    0    0    0    0    0    0    0    0    0
+  A21R    0    0    0    0    0    0    0    0    0    0    0    0    0    0
+  A22B    0    0    0    0    0    0    0    0    0    0    0    0    0    0
+      
+       A180 A18M A19W A213 A21T A22K
+  A10A    0    0    0    0    0    0
+  A10N    0    0    0    0    0    0
+  A10P    0    0    0    0    0    0
+  A12R    0    0    0    0    0    0
+  A138    0    0    0    0    0    0
+  A13K    0    0    0    0    0    0
+  A145    0    0    0    0    0    0
+  A14H    0    0    0    0    0    0
+  A14N    0    0    0    0    0    0
+  A161    0    0    0    0    0    0
+  A16A    0    0    0    0    0    0
+  A16G    0    0    0    0    0    0
+  A17F    0    0    0    0    0    0
+  A17Z   10    0    0    0    0    0
+  A18O    0   11    0    0    0    0
+  A19Z    0    0    5    0    0    0
+  A212    0    0    0    7    0    0
+  A21R    0    0    0    0    4    0
+  A22B    0    0    0    0    0    8
+> length(unique(samM$plate))
+[1] 19
+> length(unique(samE$plate))
+[1] 20
+> 
+> table(samM$institution)
+
+A1 A2 A7 A8 AC AN AO AQ AR B6 BH D8 E2 E9 EW GM 
+ 8 36 12  4 12  9 16  4 51 20 71 58 31 48 13 12 
+> table(samM$plate)
+
+A10A A10N A10P A12R A138 A13K A145 A14H A14N A161 A16A A16G A17F A17Z A18O A19Z 
+  30   18   70   30   10   52   22   19   28   23   36   18    4   10   11    5 
+A212 A21R A22B 
+   7    4    8 
+> 
+> # ------------------------------------------------------------
+> # read in genotype PC information
+> # ------------------------------------------------------------
+> 
+> raceD = read.table("QC_PCA/final_data2_CaucasianOnly_BRCA.txt",
++                   header=TRUE, sep="\t")
+> dim(raceD)
+[1] 786  12
+> raceD[1:2,]
+                       TCGA_ID
+1 TCGA-3C-AAAU-10A-01D-A41E-01
+2 TCGA-4H-AAAK-10A-01D-A41E-01
+                                                       cel_files     noHM_PC1
+1 TAKEN_p_TCGAb_379_400_FFPE_NSP_GenomeWideSNP_6_F02_1513272.CEL  0.008930321
+2 TAKEN_p_TCGAb_379_400_FFPE_NSP_GenomeWideSNP_6_C12_1513178.CEL -0.010107408
+      noHM_PC2    noHM_PC3    noHM_PC4    noHM_PC5     noHM_PC6    noHM_PC7
+1 -0.008393370 -0.04404569 0.054384236 0.126125238  0.008440690 -0.04016182
+2  0.008239946  0.03645851 0.000370421 0.006890629 -0.004689142  0.01615356
+     noHM_PC8   noHM_PC9  noHM_PC10
+1 -0.03122191 0.01414031 0.04991213
+2 -0.01659834 0.01551593 0.04243788
+> 
+> pid = substring(raceD$TCGA_ID, 1, 12)
+> table(emInfo$bcr_patient_barcode %in% pid)
+
+TRUE 
+ 405 
+> raceD = raceD[match(emInfo$bcr_patient_barcode, pid),]
+> dim(raceD)
+[1] 405  12
+> raceD[1:2,]
+                       TCGA_ID
+7 TCGA-A1-A0SE-10A-03D-A087-01
+8 TCGA-A1-A0SF-10B-01D-A141-01
+                                                   cel_files    noHM_PC1
+7       SHAWM_p_TCGAb72_SNP_N_GenomeWideSNP_6_E04_698126.CEL 0.008748328
+8 GOOFS_p_TCGA_b117_118_SNP_N_GenomeWideSNP_6_E07_778070.CEL 0.012842804
+      noHM_PC2    noHM_PC3   noHM_PC4   noHM_PC5   noHM_PC6     noHM_PC7
+7 -0.008863467 -0.05572216 0.03126924 0.03281423 0.01434983 -0.007941507
+8  0.001399374 -0.10074558 0.06949046 0.09385533 0.02840073  0.087023376
+     noHM_PC8   noHM_PC9    noHM_PC10
+7 -0.01110142 0.03665888 -0.003091461
+8  0.01959343 0.04164977  0.046669923
+> 
+> emInfo = cbind(emInfo, raceD[,3:5])
+> dim(emInfo)
+[1] 405  24
+> emInfo[1:2,]
+  bcr_patient_barcode patient_id tissue_source_site birth_days_to
+4        TCGA-A1-A0SE       A0SE                 A1        -20717
+5        TCGA-A1-A0SF       A0SF                 A1        -19731
+  last_contact_days_to    death_days_to vital_status
+4                 1321 [Not Applicable]        Alive
+5                 1463 [Not Applicable]        Alive
+  ajcc_pathologic_tumor_stage tumor_status age_at_diagnosis
+4                     Stage I   TUMOR FREE               56
+5                   Stage IIA   TUMOR FREE               54
+           methylation_barcode
+4 TCGA-A1-A0SE-01A-11D-A10P-05
+5 TCGA-A1-A0SF-01A-11D-A145-05
+                                                                methylation_file
+4  jhu-usc.edu_BRCA.HumanMethylation450.4.lvl-3.TCGA-A1-A0SE-01A-11D-A10P-05.txt
+5 jhu-usc.edu_BRCA.HumanMethylation450.11.lvl-3.TCGA-A1-A0SF-01A-11D-A145-05.txt
+            expression_barcode
+4 TCGA-A1-A0SE-01A-11R-A084-07
+5 TCGA-A1-A0SF-01A-11R-A144-07
+                                                          expression_file
+4 unc.edu.a998e0ce-9248-460f-aabc-2dad452a1ff9.1153763.rsem.genes.results
+5 unc.edu.28089e15-5e2c-4e83-ba6c-62b3cb40e431.1170335.rsem.genes.results
+                    cn_barcode
+4 TCGA-A1-A0SE-01A-11D-A087-01
+5 TCGA-A1-A0SF-01A-11D-A141-01
+                                                                    cn_file
+4       SHAWM_p_TCGAb72_SNP_N_GenomeWideSNP_6_D12_698000.nocnv_hg19.seg.txt
+5 GOOFS_p_TCGA_b117_118_SNP_N_GenomeWideSNP_6_A01_778052.nocnv_hg19.seg.txt
+  abs_call abs_purity abs_ploidy abs_doublings pam50    noHM_PC1     noHM_PC2
+4   called       0.30       4.07             1  LumA 0.008748328 -0.008863467
+5   called       0.44       3.26             1  LumA 0.012842804  0.001399374
+     noHM_PC3
+4 -0.05572216
+5 -0.10074558
+> 
+> # ------------------------------------------------------------
+> # write out results
+> # ------------------------------------------------------------
+> 
+> ff1  = "_data2/patient_brca_female_Caucasian_EMC_info_absolute.txt"
+> 
+> write.table(emInfo, file = ff1, append = FALSE, quote = FALSE, sep = "\t",
++ row.names = FALSE, col.names = TRUE)
+> 
+> 
+> # ------------------------------------------------------------
+> # create the design matrix
+> # ------------------------------------------------------------
+> 
+> table(samM$patientID == emInfo$patient_id)
+
+TRUE 
+ 405 
+> 
+> institute = as.factor(samE$institution)
+> plate     = as.factor(samE$plate)
+> age       = emInfo$age_at_diagnosis
+> 
+> sort(table(institute))
+institute
+A8 AQ A1 AN A7 AC GM EW AO B6 E2 A2 E9 AR D8 BH 
+ 4  4  8  9 12 12 12 13 16 20 31 36 48 51 58 71 
+> sort(table(plate))
+plate
+A17B A21T A19W A213 A22K A137 A180 A18M A10J A16F A14D A144 A157 A14M A109 A12P 
+   4    4    5    7    8   10   10   11   18   18   19   22   23   28   30   30 
+A056 A084 A169 A13Q 
+  34   36   36   52 
+> length(unique(institute))
+[1] 16
+> length(unique(plate))
+[1] 20
+> 
+> cDat = model.matrix(~ institute + plate + age + noHM_PC1 + noHM_PC2 + noHM_PC3, data=emInfo)
+> dim(cDat)
+[1] 405  39
+> 
+> cDat[1:2,]
+  (Intercept) instituteA2 instituteA7 instituteA8 instituteAC instituteAN
+4           1           0           0           0           0           0
+5           1           0           0           0           0           0
+  instituteAO instituteAQ instituteAR instituteB6 instituteBH instituteD8
+4           0           0           0           0           0           0
+5           0           0           0           0           0           0
+  instituteE2 instituteE9 instituteEW instituteGM plateA084 plateA109 plateA10J
+4           0           0           0           0         1         0         0
+5           0           0           0           0         0         0         0
+  plateA12P plateA137 plateA13Q plateA144 plateA14D plateA14M plateA157
+4         0         0         0         0         0         0         0
+5         0         0         0         1         0         0         0
+  plateA169 plateA16F plateA17B plateA180 plateA18M plateA19W plateA213
+4         0         0         0         0         0         0         0
+5         0         0         0         0         0         0         0
+  plateA21T plateA22K age    noHM_PC1     noHM_PC2    noHM_PC3
+4         0         0  56 0.008748328 -0.008863467 -0.05572216
+5         0         0  54 0.012842804  0.001399374 -0.10074558
+> cDat = cDat[,-1]
+> 
+> cor1 = cor(cDat)
+> eg1  = eigen(cor1)
+> eg1$values
+ [1] 2.40575771 1.91298165 1.84343420 1.73356513 1.64913571 1.61632321
+ [7] 1.53662392 1.48835702 1.43796366 1.35414965 1.22983285 1.22518803
+[13] 1.16227615 1.14990079 1.06830727 1.04208671 1.03699137 1.03245942
+[19] 1.01804648 1.00181382 0.97906928 0.96349300 0.93374314 0.79198247
+[25] 0.75468895 0.72332443 0.71789808 0.64921253 0.60080373 0.58335823
+[31] 0.51954890 0.46106432 0.44734645 0.35988348 0.26709057 0.22643127
+[37] 0.05812717 0.01773925
+> 
+> colnames(cDat) = gsub("institute", "", colnames(cDat))
+> colnames(cDat) = gsub("plate", "", colnames(cDat))
+> 
+> cDat = t(cDat)
+> colnames(cDat) = emInfo$patient_id
+> 
+> dim(cDat)
+[1]  38 405
+> cDat[1:5,1:5]
+   A0SE A0SF A0SG A0SH A0SI
+A2    0    0    0    0    0
+A7    0    0    0    0    0
+A8    0    0    0    0    0
+AC    0    0    0    0    0
+AN    0    0    0    0    0
+> 
+> cDat = data.frame(id=rownames(cDat), cDat)
+> 
+> dim(cDat)
+[1]  38 406
+> cDat[1:5,1:5]
+   id A0SE A0SF A0SG A0SH
+A2 A2    0    0    0    0
+A7 A7    0    0    0    0
+A8 A8    0    0    0    0
+AC AC    0    0    0    0
+AN AN    0    0    0    0
+> 
+> # ------------------------------------------------------------
+> # Write out the results
+> # ------------------------------------------------------------
+> 
+> write.table(cDat, file = "_data2/cov_EM.txt", append = FALSE,
++ quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
+> 
+> 
+> q(save = "no")
+> proc.time()
+   user  system elapsed 
+  0.519   0.038   0.563 

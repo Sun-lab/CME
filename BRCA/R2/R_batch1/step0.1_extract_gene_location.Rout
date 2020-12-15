@@ -1,0 +1,325 @@
+
+R version 3.1.0 (2014-04-10) -- "Spring Dance"
+Copyright (C) 2014 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin13.1.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> # ------------------------------------------------------------
+> # read in the information of features
+> # ------------------------------------------------------------
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/BRCA")
+> 
+> ff0   = "METADATA/UNC__IlluminaHiSeq_RNASeqV2/TCGA.hg19.June2011.gaf"
+> infoE = read.table(ff0, sep = "\t", header = TRUE, as.is=TRUE, comment.char="")
+> dim(infoE)
+[1] 3483703      19
+> infoE[1:2,]
+  X.EntryNumber   FeatureID FeatureType FeatureDBSource FeatureDBVersion
+1             1   CPA1|1357        gene      calculated                 
+2             2 GUCY2D|3000        gene      calculated                 
+  FeatureDBDate FeatureSeqFileName Composite CompositeType CompositeDBSource
+1            NA            genomic    GRCh37        genome              NCBI
+2            NA            genomic    GRCh37        genome              NCBI
+  CompositeDBVersion CompositeDBDate AlignmentType
+1             GRCh37              NA      pairwise
+2             GRCh37              NA      pairwise
+                                                                                                                                                                              FeatureCoordinates
+1                                                                                                         1-137,138-219,220-453,454-555,556-657,658-1064,1065-1155,1156-1355,1356-1440,1441-1724
+2 1-65,66-795,796-1100,1101-1452,1453-1537,1538-1640,1641-1742,1743-1823,1824-2030,2031-2187,2188-2337,2338-2486,2487-2650,2651-2843,2844-3018,3019-3117,3118-3212,3213-3298,3299-3410,3411-3623
+                                                                                                                                                                                                                                                                                                                     CompositeCoordinates
+1                                                                                                                          chr7:130020290-130020426,130020939-130021020,130021471-130021704,130021949-130022050,130023232-130023333,130023525-130023931,130024377-130024467,130024987-130025186,130025680-130025764,130027665-130027948:+
+2 chr17:7905988-7906052,7906357-7907086,7907170-7907474,7909681-7910032,7910378-7910462,7910744-7910846,7911249-7911350,7912824-7912904,7915462-7915668,7915768-7915924,7916421-7916570,7917198-7917346,7917919-7918082,7918177-7918369,7918646-7918820,7919061-7919159,7919245-7919339,7919523-7919608,7919761-7919872,7923446-7923658:+
+         Gene                  GeneLocus FeatureAliases FeatureInfo
+1   CPA1|1357 chr7:130020290-130027948:+                           
+2 GUCY2D|3000    chr17:7905988-7923658:+                           
+> length(unique(infoE$FeatureID))
+[1] 1675146
+> 
+> table(infoE$FeatureType, useNA="ifany")
+
+      AffySNP componentExon compositeExon          gene      junction 
+       933872        775373        689098         20806        628251 
+      MAprobe         miRNA     pre-miRNA    transcript 
+       291882          2340           940        141141 
+> 
+> infoE = infoE[infoE$FeatureType=="gene",]
+> dim(infoE)
+[1] 20806    19
+> infoE[1:2,]
+  X.EntryNumber   FeatureID FeatureType FeatureDBSource FeatureDBVersion
+1             1   CPA1|1357        gene      calculated                 
+2             2 GUCY2D|3000        gene      calculated                 
+  FeatureDBDate FeatureSeqFileName Composite CompositeType CompositeDBSource
+1            NA            genomic    GRCh37        genome              NCBI
+2            NA            genomic    GRCh37        genome              NCBI
+  CompositeDBVersion CompositeDBDate AlignmentType
+1             GRCh37              NA      pairwise
+2             GRCh37              NA      pairwise
+                                                                                                                                                                              FeatureCoordinates
+1                                                                                                         1-137,138-219,220-453,454-555,556-657,658-1064,1065-1155,1156-1355,1356-1440,1441-1724
+2 1-65,66-795,796-1100,1101-1452,1453-1537,1538-1640,1641-1742,1743-1823,1824-2030,2031-2187,2188-2337,2338-2486,2487-2650,2651-2843,2844-3018,3019-3117,3118-3212,3213-3298,3299-3410,3411-3623
+                                                                                                                                                                                                                                                                                                                     CompositeCoordinates
+1                                                                                                                          chr7:130020290-130020426,130020939-130021020,130021471-130021704,130021949-130022050,130023232-130023333,130023525-130023931,130024377-130024467,130024987-130025186,130025680-130025764,130027665-130027948:+
+2 chr17:7905988-7906052,7906357-7907086,7907170-7907474,7909681-7910032,7910378-7910462,7910744-7910846,7911249-7911350,7912824-7912904,7915462-7915668,7915768-7915924,7916421-7916570,7917198-7917346,7917919-7918082,7918177-7918369,7918646-7918820,7919061-7919159,7919245-7919339,7919523-7919608,7919761-7919872,7923446-7923658:+
+         Gene                  GeneLocus FeatureAliases FeatureInfo
+1   CPA1|1357 chr7:130020290-130027948:+                           
+2 GUCY2D|3000    chr17:7905988-7923658:+                           
+> length(unique(infoE$FeatureID))
+[1] 20806
+> 
+> table(infoE$Composite)
+
+GRCh37 
+ 20806 
+> table(infoE$FeatureID == infoE$Gene)
+
+FALSE  TRUE 
+  472 20334 
+> 
+> cols = c("FeatureID", "Gene", "GeneLocus")
+> infoE[which(infoE$FeatureID != infoE$Gene), cols][1:5,]
+                  FeatureID               Gene
+26      PPIAL4C|653598|1of2     PPIAL4C|653598
+27      PPIAL4C|653598|2of2     PPIAL4C|653598
+112      CT45A4|441520|1of2      CT45A4|441520
+113      CT45A4|441520|2of2      CT45A4|441520
+638 SNORD116-19|727708|1of2 SNORD116-19|727708
+                                                GeneLocus
+26  chr1:149553003-149553785:+;chr1:144363587-144364246:-
+27  chr1:149553003-149553785:+;chr1:144363587-144364246:-
+112 chrX:134866214-134891518:+;chrX:134928698-134936735:-
+113 chrX:134866214-134891518:+;chrX:134928698-134936735:-
+638   chr15:25328734-25328826:+;chr15:25331657-25331761:+
+> 
+> # here I remove those genes that appear more than once...
+> 
+> # ------------------------------------------------------------
+> # take a subset of information for gene location
+> # ------------------------------------------------------------
+> 
+> infoE1 = infoE[which(infoE$FeatureID == infoE$Gene),16:19]
+> dim(infoE1)
+[1] 20334     4
+> infoE1[1:5,]
+            Gene                   GeneLocus FeatureAliases FeatureInfo
+1      CPA1|1357  chr7:130020290-130027948:+                           
+2    GUCY2D|3000     chr17:7905988-7923658:+                           
+3       UBC|7316 chr12:125396194-125399577:-                           
+4 C11orf95|65998   chr11:63527365-63536113:-                           
+5   ANKMY2|57037    chr7:16639413-16685398:-                           
+> 
+> length(unique(infoE1$Gene))
+[1] 20334
+> infoE1 = unique(infoE1)
+> dim(infoE1)
+[1] 20334     4
+> infoE1[1:5,]
+            Gene                   GeneLocus FeatureAliases FeatureInfo
+1      CPA1|1357  chr7:130020290-130027948:+                           
+2    GUCY2D|3000     chr17:7905988-7923658:+                           
+3       UBC|7316 chr12:125396194-125399577:-                           
+4 C11orf95|65998   chr11:63527365-63536113:-                           
+5   ANKMY2|57037    chr7:16639413-16685398:-                           
+> 
+> table(infoE1$FeatureAliases=="")
+
+ TRUE 
+20334 
+> table(infoE1$FeatureInfo=="")
+
+ TRUE 
+20334 
+> 
+> infoE1 = infoE1[,1:2]
+> dim(infoE1)
+[1] 20334     2
+> infoE1[1:5,]
+            Gene                   GeneLocus
+1      CPA1|1357  chr7:130020290-130027948:+
+2    GUCY2D|3000     chr17:7905988-7923658:+
+3       UBC|7316 chr12:125396194-125399577:-
+4 C11orf95|65998   chr11:63527365-63536113:-
+5   ANKMY2|57037    chr7:16639413-16685398:-
+> 
+> gene1 = strsplit(infoE1$Gene, split="|", fixed=TRUE)
+> table(sapply(gene1, length))
+
+    2 
+20334 
+> 
+> gene1 = matrix(unlist(gene1), byrow=TRUE, ncol=2)
+> dim(gene1)
+[1] 20334     2
+> gene1[1:5,]
+     [,1]       [,2]   
+[1,] "CPA1"     "1357" 
+[2,] "GUCY2D"   "3000" 
+[3,] "UBC"      "7316" 
+[4,] "C11orf95" "65998"
+[5,] "ANKMY2"   "57037"
+> 
+> locus1 = strsplit(infoE1$GeneLocus, split=":", fixed=TRUE)
+> table(sapply(locus1, length))
+
+    3 
+20334 
+> 
+> locus1 = matrix(unlist(locus1), byrow=TRUE, ncol=3)
+> dim(locus1)
+[1] 20334     3
+> locus1[1:5,]
+     [,1]    [,2]                  [,3]
+[1,] "chr7"  "130020290-130027948" "+" 
+[2,] "chr17" "7905988-7923658"     "+" 
+[3,] "chr12" "125396194-125399577" "-" 
+[4,] "chr11" "63527365-63536113"   "-" 
+[5,] "chr7"  "16639413-16685398"   "-" 
+> 
+> locus2 = strsplit(locus1[,2], split="-", fixed=TRUE)
+> table(sapply(locus2, length))
+
+    2 
+20334 
+> 
+> locus2 = matrix(unlist(locus2), byrow=TRUE, ncol=2)
+> dim(locus2)
+[1] 20334     2
+> locus2[1:5,]
+     [,1]        [,2]       
+[1,] "130020290" "130027948"
+[2,] "7905988"   "7923658"  
+[3,] "125396194" "125399577"
+[4,] "63527365"  "63536113" 
+[5,] "16639413"  "16685398" 
+> 
+> infoE2 = data.frame(cbind(infoE1$Gene, gene1, locus1[,1], locus2, locus1[,3]),
++                     stringsAsFactors=FALSE)
+> dim(infoE2)
+[1] 20334     7
+> infoE2[1:5,]
+              X1       X2    X3    X4        X5        X6 X7
+1      CPA1|1357     CPA1  1357  chr7 130020290 130027948  +
+2    GUCY2D|3000   GUCY2D  3000 chr17   7905988   7923658  +
+3       UBC|7316      UBC  7316 chr12 125396194 125399577  -
+4 C11orf95|65998 C11orf95 65998 chr11  63527365  63536113  -
+5   ANKMY2|57037   ANKMY2 57037  chr7  16639413  16685398  -
+> 
+> names(infoE2) = c("gene", "geneSymbol", "geneID", "chr", "start", "end", "strand")
+> dim(infoE2)
+[1] 20334     7
+> infoE2[1:5,]
+            gene geneSymbol geneID   chr     start       end strand
+1      CPA1|1357       CPA1   1357  chr7 130020290 130027948      +
+2    GUCY2D|3000     GUCY2D   3000 chr17   7905988   7923658      +
+3       UBC|7316        UBC   7316 chr12 125396194 125399577      -
+4 C11orf95|65998   C11orf95  65998 chr11  63527365  63536113      -
+5   ANKMY2|57037     ANKMY2  57037  chr7  16639413  16685398      -
+> 
+> table(infoE2$chr)
+
+      chr1      chr10      chr11      chr12      chr13      chr14      chr15 
+      2081        770       1309       1052        340        659        662 
+     chr16      chr17      chr18      chr19       chr2      chr20      chr21 
+       837       1199        277       1412       1270        576        255 
+     chr22       chr3       chr4       chr5       chr6       chr7       chr8 
+       470       1105        761        900       1084        959        673 
+      chr9       chrX       chrY GL000205.1 GL000209.1 GL000212.1 GL000218.1 
+       821        803         48          1          6          1          1 
+GL000219.1 GL000220.1 
+         1          1 
+> table(infoE2$strand)
+
+    -     + 
+10007 10327 
+> 
+> infoE2 = infoE2[infoE2$chr %in% paste("chr", c(1:22,"X","Y"), sep=""),]
+> dim(infoE2)
+[1] 20323     7
+> infoE2[1:5,]
+            gene geneSymbol geneID   chr     start       end strand
+1      CPA1|1357       CPA1   1357  chr7 130020290 130027948      +
+2    GUCY2D|3000     GUCY2D   3000 chr17   7905988   7923658      +
+3       UBC|7316        UBC   7316 chr12 125396194 125399577      -
+4 C11orf95|65998   C11orf95  65998 chr11  63527365  63536113      -
+5   ANKMY2|57037     ANKMY2  57037  chr7  16639413  16685398      -
+> 
+> # ------------------------------------------------------------
+> # mapping from ensembl ID to gene ID
+> # ------------------------------------------------------------
+> 
+> g2e = read.table("~/research/data/human/hg19_info/gene2ensembl",
++                   sep="\t", header=TRUE, as.is=TRUE)
+> dim(g2e)
+[1] 285186      7
+> g2e[1:2,]
+  tax_id GeneID Ensembl_gene_identifier RNA_nucleotide_accession.version
+1   7227  30970             FBgn0040373                      NM_130477.2
+2   7227  30970             FBgn0040373                      NM_166834.1
+  Ensembl_rna_identifier protein_accession.version Ensembl_protein_identifier
+1            FBtr0070108               NP_569833.1                FBpp0070103
+2            FBtr0070107               NP_726658.1                FBpp0070102
+> 
+> g2e = g2e[g2e$tax_id==9606,]
+> dim(g2e)
+[1] 31481     7
+> g2e[1:2,]
+       tax_id GeneID Ensembl_gene_identifier RNA_nucleotide_accession.version
+118841   9606      1         ENSG00000121410                      NM_130786.3
+118842   9606      2         ENSG00000175899                      NM_000014.4
+       Ensembl_rna_identifier protein_accession.version
+118841        ENST00000263100               NP_570602.2
+118842        ENST00000318602               NP_000005.2
+       Ensembl_protein_identifier
+118841            ENSP00000263100
+118842            ENSP00000323929
+> 
+> table(infoE2$geneID %in% g2e$GeneID)
+
+FALSE  TRUE 
+ 2009 18314 
+> 
+> infoE2$ensembl = rep(NA, nrow(infoE2))
+> 
+> mat1 = match(infoE2$geneID, g2e$GeneID)
+> wmat = which(!is.na(mat1))
+> 
+> infoE2$ensembl[wmat] = g2e$Ensembl_gene_identifier[mat1[wmat]]
+> 
+> dim(infoE2)
+[1] 20323     8
+> infoE2[1:5,]
+            gene geneSymbol geneID   chr     start       end strand
+1      CPA1|1357       CPA1   1357  chr7 130020290 130027948      +
+2    GUCY2D|3000     GUCY2D   3000 chr17   7905988   7923658      +
+3       UBC|7316        UBC   7316 chr12 125396194 125399577      -
+4 C11orf95|65998   C11orf95  65998 chr11  63527365  63536113      -
+5   ANKMY2|57037     ANKMY2  57037  chr7  16639413  16685398      -
+          ensembl
+1 ENSG00000091704
+2 ENSG00000132518
+3 ENSG00000150991
+4            <NA>
+5 ENSG00000106524
+> 
+> write.table(infoE2, file = "_data2/gene_info.txt", append = FALSE,
++             quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
+> 
+> q(save = "no")
+> proc.time()
+   user  system elapsed 
+172.487   3.186 179.313 

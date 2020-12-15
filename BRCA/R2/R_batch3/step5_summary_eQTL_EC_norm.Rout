@@ -1,0 +1,201 @@
+
+R version 3.1.0 (2014-04-10) -- "Spring Dance"
+Copyright (C) 2014 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin13.1.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/BRCA/_data2")
+> 
+> # ------------------------------------------------------------------------------
+> # Read in eQTL results.
+> # ------------------------------------------------------------------------------
+> 
+> pvs0 = read.table("expression_vs_cn_with_pam50.txt", header=TRUE,
++       sep="\t", as.is=TRUE)
+> dim(pvs0)
+[1] 855907      6
+> pvs0[1:2,]
+            SNP       gene      beta   t.stat       p.value           FDR
+1    ASH2L|9070 ASH2L|9070 0.3892197 65.50938 1.791965e-202 5.536556e-194
+2 EIF4EBP1|1978 ASH2L|9070 0.3783946 61.07422 2.170214e-192 3.352606e-184
+> summary(pvs0$p.value)
+     Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+0.000e+00 0.000e+00 0.000e+00 3.704e-22 5.450e-24 1.000e-20 
+> 
+> key0 = paste(pvs0$gene, pvs0$SNP, sep=":")
+> 
+> pvs = read.table("expression_vs_cn_with_pam50_qnorm.txt", header=TRUE,
++           sep="\t", as.is=TRUE)
+> dim(pvs)
+[1] 864918      6
+> pvs[1:2,]
+           SNP          gene     beta   t.stat       p.value           FDR
+1  MAK16|84549 C8orf41|80185 1.995784 33.64588 2.468876e-113 7.627976e-105
+2 GOLGA7|51125  GOLGA7|51125 1.673574 33.29316 4.396770e-112 6.792253e-104
+> summary(pvs$p.value)
+     Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+0.000e+00 0.000e+00 0.000e+00 3.876e-22 7.886e-24 1.000e-20 
+> 
+> keys = paste(pvs$gene, pvs$SNP, sep=":")
+> 
+> length(intersect(key0, keys))
+[1] 815887
+> keyAll = union(key0, keys)
+> length(keyAll)
+[1] 904938
+> 
+> p0 = p1 = rep(5, length(keyAll))
+> p0[match(key0, keyAll)] = -log10(pvs0$p.value)
+> p1[match(keys, keyAll)] = -log10(pvs$p.value)
+> 
+> png("../figures2/expression_vs_cn_with_pam50_qnorm_vs_not.png",
++       width=5, height=5, res=400, units="in")
+> par(bty="n", mar=c(5,4,1,1))
+> plot(p0, p1, xlab="-log10(p-value) Untransformed data",
++              ylab="-log10(p-value) normalized data", pch=20,
++              col=rgb(0.8,0.2,0.2,0.5))
+> abline(0, 1, col="grey", lwd=2)
+> dev.off()
+null device 
+          1 
+> 
+> table(pvs$p.value < 1e-20)
+
+  TRUE 
+864918 
+> table(pvs$p.value < 1e-30)
+
+ FALSE   TRUE 
+529640 335278 
+> table(pvs$p.value < 1e-40)
+
+ FALSE   TRUE 
+745306 119612 
+> table(pvs$p.value < 1e-50)
+
+ FALSE   TRUE 
+823396  41522 
+> 
+> # ------------------------------------------------------------------------------
+> # Read in location annotation.
+> # ------------------------------------------------------------------------------
+> 
+> infoE = read.table("expression_info.txt", sep="\t", header=TRUE, as.is=TRUE)
+> dim(infoE)
+[1] 15816     8
+> infoE[1:2,]
+     gene geneSymbol geneID   chr    start      end strand ensembl
+1 ?|10357          ?  10357 chr20 56063450 56064083      -    <NA>
+2 ?|10431          ?  10431 chr10 51592090 51623336      -    <NA>
+> 
+> table(infoE$chr, useNA="ifany")
+
+ chr1 chr10 chr11 chr12 chr13 chr14 chr15 chr16 chr17 chr18 chr19  chr2 chr20 
+ 1651   617   902   839   264   501   500   701   945   228  1135  1030   423 
+chr21 chr22  chr3  chr4  chr5  chr6  chr7  chr8  chr9  chrX  chrY 
+  161   395   888   586   742   817   764   534   635   557     1 
+> 
+> infoC = read.table("cn_info.txt", sep="\t", header=TRUE, as.is=TRUE)
+> dim(infoC)
+[1] 19535     8
+> infoC[1:2,]
+            gene geneSymbol geneID  chr   start     end strand         ensembl
+1   PRDM16|63976     PRDM16  63976 chr1 2985744 3355183      + ENSG00000142611
+2 ARHGEF16|27237   ARHGEF16  27237 chr1 3371147 3397675      + ENSG00000130762
+> table(infoC$chr, useNA="ifany")
+
+ chr1 chr10 chr11 chr12 chr13 chr14 chr15 chr16 chr17 chr18 chr19  chr2 chr20 
+ 1912   762  1205  1029   336   644   636   780  1183   265  1393  1255   537 
+chr21 chr22  chr3  chr4  chr5  chr6  chr7  chr8  chr9  chrX 
+  243   423  1097   735   876  1080   952   630   785   777 
+> 
+> # ------------------------------------------------------------------------------
+> # files
+> # ------------------------------------------------------------------------------
+> 
+> source("../../shared_code/eQTL_Plot.R")
+> 
+> inputs = "expression_vs_cn_qnorm.txt"
+> inputs = c(inputs, "expression_vs_cn_with_pam50_qnorm.txt")
+> inputs = c(inputs, "expression_vs_cn_with_ab_purity_pam50_qnorm.txt")
+> 
+> inputs
+[1] "expression_vs_cn_qnorm.txt"                     
+[2] "expression_vs_cn_with_pam50_qnorm.txt"          
+[3] "expression_vs_cn_with_ab_purity_pam50_qnorm.txt"
+> 
+> outputs = gsub(".txt", ".png", inputs, fixed=TRUE)
+> 
+> outputs
+[1] "expression_vs_cn_qnorm.png"                     
+[2] "expression_vs_cn_with_pam50_qnorm.png"          
+[3] "expression_vs_cn_with_ab_purity_pam50_qnorm.png"
+> 
+> for(i in 1:3){
++   
++   inputi  = inputs[i]
++   outputi = outputs[i]
++   
++   # ------------------------------------------------------------------------
++   # read in eQTL results
++   # ------------------------------------------------------------------------
++   
++   pvs = read.table(inputi, header=TRUE, sep="\t", as.is=TRUE)
++   dim(pvs)
++   pvs[1:2,]
++   
++   summary(pvs$p.value)
++   
++   table(pvs$p.value < 1e-30)
++   table(pvs$p.value < 1e-40)
++   table(pvs$p.value < 1e-50)
++   table(pvs$p.value < 1e-60)
++   table(pvs$p.value < 1e-80)
++   
++   # ------------------------------------------------------------------------
++   # plot it
++   # ------------------------------------------------------------------------
++   
++   table(pvs$gene %in% infoE$gene)
++   table(pvs$SNP  %in% infoC$gene)
++   
++   ptplot   = pvs
++   geneID   = match(ptplot$gene, infoE$gene)
++   markerID = match(ptplot$SNP,  infoC$gene)
++   scores   = ptplot$p.value
++   scuts    = c(1e-20, 1e-30, 1e-40, 1e-60)
++   cols     = c("green", "blue", "red", "black")
++   eChr     = gsub("chr", "", infoE$chr)
++   ePos     = 0.5*(infoE$start + infoE$end)
++   mChr     = gsub("chr", "", infoC$chr)
++   mPos     = 0.5*(infoC$start + infoC$end)
++   chroms   = 1:22
++   
++   png(sprintf("../figures2/%s", outputi), width=7.5, height=9,
++   res=200, units="in")
++   
++   eqtl.plot(geneID, markerID, scores, scuts, cols, eChr, ePos, mChr,
++   mPos, chroms, xlab="CN Location", ylab="Transcript Location",
++   plot.hotspots=TRUE, hotspots.cut=10, score.type="p-value")
++   dev.off()
++   
++ }
+> 
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+429.290   7.966 833.517 

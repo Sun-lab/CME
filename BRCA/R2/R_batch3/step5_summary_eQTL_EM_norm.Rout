@@ -1,0 +1,244 @@
+
+R version 3.1.0 (2014-04-10) -- "Spring Dance"
+Copyright (C) 2014 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin13.1.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> # ------------------------------------------------------------------------------
+> # Read in eQTL results.
+> # ------------------------------------------------------------------------------
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/BRCA/_data2")
+> 
+> pvs0 = read.table("expression_vs_methylation_rm_cn_pam50.txt",
++             header=TRUE, sep="\t", as.is=TRUE)
+> dim(pvs0)
+[1] 1029729       6
+> pvs0[1:2,]
+         SNP       gene       beta    t.stat       p.value           FDR
+1 cg04234412 GSTT1|2952 -0.6872413 -67.51774 7.505016e-207 4.522987e-197
+2 cg12419862 GSTT1|2952 -1.0154168 -52.43101 6.855522e-171 2.065781e-161
+> summary(pvs0$p.value)
+     Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+0.000e+00 0.000e+00 0.000e+00 3.837e-42 7.494e-44 1.000e-40 
+> 
+> key0 = paste(pvs0$gene, pvs0$SNP, sep=":")
+> 
+> pvs = read.table("expression_vs_methylation_rm_cn_pam50_qnorm.txt",
++             header=TRUE, sep="\t", as.is=TRUE)
+> dim(pvs)
+[1] 1155159       6
+> pvs[1:2,]
+         SNP     gene       beta    t.stat       p.value           FDR
+1 cg12212198 CD3E|916  0.9023866  40.66049 7.981934e-137 4.810407e-127
+2 cg14531564  CD5|921 -0.9335314 -40.46326 3.370242e-136 1.015558e-126
+> 
+> summary(pvs$p.value)
+     Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+0.000e+00 0.000e+00 0.000e+00 3.951e-42 9.096e-44 1.000e-40 
+> 
+> keys = paste(pvs$gene, pvs$SNP, sep=":")
+> 
+> length(intersect(key0, keys))
+[1] 982849
+> keyAll = union(key0, keys)
+> length(keyAll)
+[1] 1202039
+> 
+> p0 = p1 = rep(5, length(keyAll))
+> p0[match(key0, keyAll)] = -log10(pvs0$p.value)
+> p1[match(keys, keyAll)] = -log10(pvs$p.value)
+> 
+> png("../figures2/expression_vs_methylation_rm_cn_pam50_qnorm_vs_not.png",
++     width=5, height=5,
++ res=400, units="in")
+> par(bty="n", mar=c(5,4,1,1))
+> plot(p0, p1, xlab="-log10(p-value) Untransformed data",
++ ylab="-log10(p-value) normalized data", pch=20,
++ col=rgb(0.8,0.2,0.2,0.5))
+> abline(0, 1, col="grey", lwd=2)
+> dev.off()
+null device 
+          1 
+> 
+> table(pvs$p.value < 1e-50)
+
+ FALSE   TRUE 
+706266 448893 
+> table(pvs$p.value < 1e-60)
+
+ FALSE   TRUE 
+985123 170036 
+> 
+> # --------------------------------------------------------------
+> # files
+> # --------------------------------------------------------------
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/BRCA/_data2")
+> 
+> inputs = "expression_vs_methylation_qnorm.txt"
+> inputs = c(inputs, "expression_vs_methylation_rm_cn_qnorm.txt")
+> inputs = c(inputs, "expression_vs_methylation_rm_cn_pam50_qnorm.txt")
+> inputs = c(inputs, "expression_vs_methylation_rm_cn_ab_purity_pam50_qnorm.txt")
+> 
+> inputs
+[1] "expression_vs_methylation_qnorm.txt"                      
+[2] "expression_vs_methylation_rm_cn_qnorm.txt"                
+[3] "expression_vs_methylation_rm_cn_pam50_qnorm.txt"          
+[4] "expression_vs_methylation_rm_cn_ab_purity_pam50_qnorm.txt"
+> 
+> outputs = gsub(".txt", ".png", inputs, fixed=TRUE)
+> 
+> outputs
+[1] "expression_vs_methylation_qnorm.png"                      
+[2] "expression_vs_methylation_rm_cn_qnorm.png"                
+[3] "expression_vs_methylation_rm_cn_pam50_qnorm.png"          
+[4] "expression_vs_methylation_rm_cn_ab_purity_pam50_qnorm.png"
+> 
+> # --------------------------------------------------------------
+> # read in location annotation
+> # --------------------------------------------------------------
+> 
+> infoE = read.table("expression_info.txt", sep="\t", header=TRUE,
++ as.is=TRUE)
+> dim(infoE)
+[1] 15816     8
+> infoE[1:2,]
+     gene geneSymbol geneID   chr    start      end strand ensembl
+1 ?|10357          ?  10357 chr20 56063450 56064083      -    <NA>
+2 ?|10431          ?  10431 chr10 51592090 51623336      -    <NA>
+> 
+> table(infoE$chr, useNA="ifany")
+
+ chr1 chr10 chr11 chr12 chr13 chr14 chr15 chr16 chr17 chr18 chr19  chr2 chr20 
+ 1651   617   902   839   264   501   500   701   945   228  1135  1030   423 
+chr21 chr22  chr3  chr4  chr5  chr6  chr7  chr8  chr9  chrX  chrY 
+  161   395   888   586   742   817   764   534   635   557     1 
+> 
+> infoM = read.table("methylation_info.txt", sep="\t", header=TRUE,
++ as.is=TRUE)
+> dim(infoM)
+[1] 394309      4
+> infoM[1:2,]
+  Composite.Element.REF Gene_Symbol Chromosome Genomic_Coordinate
+1            cg13869341      WASH5P          1              15865
+2            cg14008030      WASH5P          1              18827
+> table(infoM$Chromosome, useNA="ifany")
+
+    1    10    11    12    13    14    15    16    17    18    19     2    20 
+38242 19826 23592 19786  9777 12319 12483 18028 23465  5021 21102 28054  8658 
+   21    22     3     4     5     6     7     8     9     X     Y  <NA> 
+ 3539  7037 20107 15950 19619 29143 24109 16547  8047  9760    33    65 
+> 
+> # ------------------------------------------------------------------------
+> # read in more detailed methyaltion information
+> # ------------------------------------------------------------------------
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/shared_data/450k")
+> 
+> infMd = read.table("HumanMethylation450_15017482_v1-2_filtered_updated.txt",
++ sep="\t", header=TRUE, as.is=TRUE, quote="")
+> 
+> dim(infMd)
+[1] 393401     22
+> infMd[1:2,]
+        Name Infinium_Design_Type Next_Base Color_Channel Genome_Build CHR
+1 cg00035864                   II                                   37   Y
+2 cg00050873                    I         A           Red           37   Y
+  MAPINFO Strand Random_Loci Methyl27_Loci UCSC_RefGene_Name
+1 8553009      F          NA            NA            TTTY18
+2 9363356      R          NA            NA    TSPY4;FAM197Y2
+  UCSC_RefGene_Accession UCSC_RefGene_Group UCSC_CpG_Islands_Name
+1              NR_001550            TSS1500                      
+2 NM_001164471;NR_001553       Body;TSS1500  chrY:9363680-9363943
+  Relation_to_UCSC_CpG_Island Phantom DMR Enhancer        HMM_Island
+1                                               NA                  
+2                     N_Shore                   NA Y:9973136-9976273
+  Regulatory_Feature_Name Regulatory_Feature_Group DHS
+1                                                   NA
+2                                                   NA
+> 
+> # --------------------------------------------------------------
+> # iteratively summarizing results
+> # --------------------------------------------------------------
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/BRCA/_data2")
+> 
+> source("~/research/TCGA/_Sun_MethyE/shared_code/eQTL_Plot.R")
+> 
+> for(i in 1:4){
++   
++   inputi  = inputs[i]
++   outputi = outputs[i]
++   
++   # ------------------------------------------------------------
++   # read in eQTL results
++   # ------------------------------------------------------------
++   
++   pvs = read.table(inputi, header=TRUE, sep="\t", as.is=TRUE)
++   dim(pvs)
++   pvs[1:2,]
++   
++   summary(pvs$p.value)
++   
++   pvs = pvs[pvs$p.value < 1e-50,]
++   dim(pvs)
++   gc()
++   
++   summary(pvs$p.value)
++   
++   table(pvs$p.value < 1e-60)
++   table(pvs$p.value < 1e-70)
++   table(pvs$p.value < 1e-80)
++   table(pvs$p.value < 1e-90)
++   table(pvs$p.value < 1e-100)
++     
++   # ------------------------------------------------------------
++   # plot it after removing those possible problematic probes
++   # ------------------------------------------------------------
++   
++   table(pvs$SNP  %in% infMd$Name)
++   pvs = pvs[which(pvs$SNP  %in% infMd$Name),]
++   
++   geneID   = match(pvs$gene, infoE$gene)
++   markerID = match(pvs$SNP,  infoM$Composite.Element.REF)
++   scores   = pvs$p.value
++   scuts    = c(1e-60, 1e-70, 1e-80, 1e-100)
++   cols     = c("green", "blue", "red", "black")
++   eChr     = gsub("chr", "", infoE$chr)
++   ePos     = 0.5*(infoE$start + infoE$end)
++   mChr     = infoM$Chromosome
++   mPos     = infoM$Genomic_Coordinate
++   chroms   = 1:22
++   
++   outputi1 = sub(".png", "_rm_bad_m.png", outputi, fixed=TRUE)
++   png(sprintf("../figures2/%s", outputi1), width=7.5, height=9,
++   res=200, units="in")
++   
++   eqtl.plot(geneID, markerID, scores, scuts, cols, eChr, ePos, mChr,
++   mPos, chroms, xlab="Methylation Probe Location",
++   ylab="Transcript Location", plot.hotspots=TRUE,
++   hotspots.cut=10, score.type="p-value")
++   
++   dev.off()
++   
++ }
+> 
+> q(save="no")
+> proc.time()
+   user  system elapsed 
+372.273   5.888 395.065 

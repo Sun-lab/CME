@@ -1,0 +1,898 @@
+
+R version 3.1.0 (2014-04-10) -- "Spring Dance"
+Copyright (C) 2014 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin13.1.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> # setwd("/home/groups/projects/ith/_Sun_methylE/BRCA/")
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/BRCA/")
+> 
+> # ------------------------------------------------------------
+> # read in race information obtained by PCA
+> # ------------------------------------------------------------
+> 
+> raceD = read.table("QC_PCA/final_data_BRCA.txt", header=TRUE, sep="\t")
+> dim(raceD)
+[1] 1097   11
+> raceD[1:2,]
+                       TCGA_ID
+1 TCGA-3C-AAAU-10A-01D-A41E-01
+2 TCGA-3C-AALI-10A-01D-A41E-01
+                                                       cel_files
+1 TAKEN_p_TCGAb_379_400_FFPE_NSP_GenomeWideSNP_6_F02_1513272.CEL
+2 TAKEN_p_TCGAb_379_400_FFPE_NSP_GenomeWideSNP_6_F06_1513218.CEL
+  qc.call.rate.all contrast.qc PASS.QC.1 call_rate het_rate PASS.QC.2
+1          0.97551     2.02355         1  98.46318 27.29597         1
+2          0.95632     2.70878         1  97.77371 28.80232         1
+     noHM_PC1    noHM_PC2 Caucasian
+1 0.008930321 -0.00839337       YES
+2          NA          NA        NO
+> 
+> table(raceD$Caucasian, raceD$PASS.QC.1 + 2*raceD$PASS.QC.2, useNA="ifany")
+      
+         0   3
+  NO     0 255
+  YES    0 786
+  <NA>  56   0
+> 
+> pid = substring(raceD$TCGA_ID, 1, 12)
+> 
+> # ------------------------------------------------------------
+> # read in patient information
+> # ------------------------------------------------------------
+> 
+> ff0 = "Clinical/Biotab/nationwidechildrens.org_clinical_patient_brca.txt"
+> pat = read.table(ff0, sep = "\t", header = TRUE, as.is=TRUE,
++                  na.string="[Not Available]", quote = "")
+> 
+> dim(pat)
+[1] 1080  109
+> pat[1:3,1:10]
+                      bcr_patient_uuid bcr_patient_barcode form_completion_date
+1                     bcr_patient_uuid bcr_patient_barcode form_completion_date
+2                              CDE_ID:      CDE_ID:2673794              CDE_ID:
+3 6E7D5EC6-A469-467C-B748-237353C23416        TCGA-3C-AAAU            2014-1-13
+                   prospective_collection
+1 tissue_prospective_collection_indicator
+2                          CDE_ID:3088492
+3                                      NO
+                   retrospective_collection  birth_days_to         gender
+1 tissue_retrospective_collection_indicator  days_to_birth         gender
+2                            CDE_ID:3088528 CDE_ID:3008233 CDE_ID:2200604
+3                                       YES         -20211         FEMALE
+                                                                              menopause_status
+1                                                                             menopause_status
+2                                                                               CDE_ID:2957270
+3 Pre (<6 months since LMP AND no prior bilateral ovariectomy AND not on estrogen replacement)
+            race              ethnicity
+1           race              ethnicity
+2 CDE_ID:2192199         CDE_ID:2192217
+3          WHITE NOT HISPANIC OR LATINO
+> 
+> # the first two rows are description, instead of data
+> pat = pat[-(1:2),]
+> dim(pat)
+[1] 1078  109
+> pat[1:2,1:10]
+                      bcr_patient_uuid bcr_patient_barcode form_completion_date
+3 6E7D5EC6-A469-467C-B748-237353C23416        TCGA-3C-AAAU            2014-1-13
+4 55262FCB-1B01-4480-B322-36570430C917        TCGA-3C-AALI            2014-7-28
+  prospective_collection retrospective_collection birth_days_to gender
+3                     NO                      YES        -20211 FEMALE
+4                     NO                      YES        -18538 FEMALE
+                                                                              menopause_status
+3 Pre (<6 months since LMP AND no prior bilateral ovariectomy AND not on estrogen replacement)
+4            Post (prior bilateral ovariectomy OR >12 mo since LMP with no prior hysterectomy)
+                       race              ethnicity
+3                     WHITE NOT HISPANIC OR LATINO
+4 BLACK OR AFRICAN AMERICAN NOT HISPANIC OR LATINO
+> names(pat)
+  [1] "bcr_patient_uuid"                    
+  [2] "bcr_patient_barcode"                 
+  [3] "form_completion_date"                
+  [4] "prospective_collection"              
+  [5] "retrospective_collection"            
+  [6] "birth_days_to"                       
+  [7] "gender"                              
+  [8] "menopause_status"                    
+  [9] "race"                                
+ [10] "ethnicity"                           
+ [11] "history_other_malignancy"            
+ [12] "history_neoadjuvant_treatment"       
+ [13] "tumor_status"                        
+ [14] "vital_status"                        
+ [15] "last_contact_days_to"                
+ [16] "death_days_to"                       
+ [17] "radiation_treatment_adjuvant"        
+ [18] "pharmaceutical_tx_adjuvant"          
+ [19] "histologic_diagnosis_other"          
+ [20] "initial_pathologic_dx_year"          
+ [21] "age_at_diagnosis"                    
+ [22] "method_initial_path_dx"              
+ [23] "method_initial_path_dx_other"        
+ [24] "surgical_procedure_first"            
+ [25] "first_surgical_procedure_other"      
+ [26] "margin_status"                       
+ [27] "surgery_for_positive_margins"        
+ [28] "surgery_for_positive_margins_other"  
+ [29] "margin_status_reexcision"            
+ [30] "axillary_staging_method"             
+ [31] "axillary_staging_method_other"       
+ [32] "micromet_detection_by_ihc"           
+ [33] "lymph_nodes_examined_count"          
+ [34] "lymph_nodes_examined"                
+ [35] "lymph_nodes_examined_he_count"       
+ [36] "lymph_nodes_examined_ihc_count"      
+ [37] "ajcc_staging_edition"                
+ [38] "ajcc_tumor_pathologic_pt"            
+ [39] "ajcc_nodes_pathologic_pn"            
+ [40] "ajcc_metastasis_pathologic_pm"       
+ [41] "ajcc_pathologic_tumor_stage"         
+ [42] "metastasis_site"                     
+ [43] "metastasis_site_other"               
+ [44] "er_status_by_ihc"                    
+ [45] "er_status_ihc_Percent_Positive"      
+ [46] "er_positivity_scale_used"            
+ [47] "er_ihc_score"                        
+ [48] "er_positivity_scale_other"           
+ [49] "er_positivity_method"                
+ [50] "pr_status_by_ihc"                    
+ [51] "pr_status_ihc_percent_positive"      
+ [52] "pr_positivity_scale_used"            
+ [53] "pr_positivity_ihc_intensity_score"   
+ [54] "pr_positivity_scale_other"           
+ [55] "pr_positivity_define_method"         
+ [56] "her2_status_by_ihc"                  
+ [57] "her2_ihc_percent_positive"           
+ [58] "her2_ihc_score"                      
+ [59] "her2_positivity_scale_other"         
+ [60] "her2_positivity_method_text"         
+ [61] "her2_fish_status"                    
+ [62] "her2_copy_number"                    
+ [63] "cent17_copy_number"                  
+ [64] "her2_and_cent17_cells_count"         
+ [65] "her2_cent17_ratio"                   
+ [66] "her2_and_cent17_scale_other"         
+ [67] "her2_fish_method"                    
+ [68] "new_tumor_event_dx_indicator"        
+ [69] "nte_er_status"                       
+ [70] "nte_er_status_ihc__positive"         
+ [71] "nte_er_ihc_intensity_score"          
+ [72] "nte_er_positivity_other_scale"       
+ [73] "nte_er_positivity_define_method"     
+ [74] "nte_pr_status_by_ihc"                
+ [75] "nte_pr_status_ihc__positive"         
+ [76] "nte_pr_ihc_intensity_score"          
+ [77] "nte_pr_positivity_other_scale"       
+ [78] "nte_pr_positivity_define_method"     
+ [79] "nte_her2_status"                     
+ [80] "nte_her2_status_ihc__positive"       
+ [81] "nte_her2_positivity_ihc_score"       
+ [82] "nte_her2_positivity_other_scale"     
+ [83] "nte_her2_positivity_method"          
+ [84] "nte_her2_fish_status"                
+ [85] "nte_her2_signal_number"              
+ [86] "nte_cent_17_signal_number"           
+ [87] "her2_cent17_counted_cells_count"     
+ [88] "nte_cent_17_her2_ratio"              
+ [89] "nte_cent17_her2_other_scale"         
+ [90] "nte_her2_fish_define_method"         
+ [91] "anatomic_neoplasm_subdivision"       
+ [92] "clinical_M"                          
+ [93] "clinical_N"                          
+ [94] "clinical_T"                          
+ [95] "clinical_stage"                      
+ [96] "days_to_initial_pathologic_diagnosis"
+ [97] "disease_code"                        
+ [98] "extranodal_involvement"              
+ [99] "histological_type"                   
+[100] "icd_10"                              
+[101] "icd_o_3_histology"                   
+[102] "icd_o_3_site"                        
+[103] "informed_consent_verified"           
+[104] "metastatic_tumor_indicator"          
+[105] "patient_id"                          
+[106] "project_code"                        
+[107] "site_of_primary_tumor_other"         
+[108] "tissue_source_site"                  
+[109] "tumor_tissue_site"                   
+> 
+> length(unique(pat$patient_id))
+[1] 1078
+> 
+> table(pat$prospective_collection, useNA="ifany")
+
+  NO  YES <NA> 
+ 725  352    1 
+> table(pat$race, useNA="ifany")
+
+                 [Not Evaluated] AMERICAN INDIAN OR ALASKA NATIVE 
+                               3                                1 
+                           ASIAN        BLACK OR AFRICAN AMERICAN 
+                              61                              172 
+                           WHITE                             <NA> 
+                             747                               94 
+> table(pat$gender, useNA="ifany")
+
+FEMALE   MALE 
+  1067     11 
+> table(pat$ethnicity, useNA="ifany")
+
+       [Not Evaluated]              [Unknown]     HISPANIC OR LATINO 
+                     3                      8                     36 
+NOT HISPANIC OR LATINO                   <NA> 
+                   868                    163 
+> 
+> table(pid %in% pat$bcr_patient_barcode)
+
+FALSE  TRUE 
+   23  1074 
+> table(pat$bcr_patient_barcode %in% pid)
+
+FALSE  TRUE 
+    4  1074 
+> 
+> barcode = intersect(pid, pat$bcr_patient_barcode)
+> length(barcode)
+[1] 1074
+> 
+> raceD = raceD[match(barcode,pid),]
+> pat   = pat[match(barcode,pat$bcr_patient_barcode),]
+> 
+> dim(raceD)
+[1] 1074   11
+> dim(pat)
+[1] 1074  109
+> table(substring(raceD$TCGA_ID, 1, 12) == pat$bcr_patient_barcode)
+
+TRUE 
+1074 
+> 
+> table(pat$race, raceD$Caucasian, useNA="ifany")
+                                  
+                                    NO YES <NA>
+  [Not Evaluated]                    0   2    1
+  AMERICAN INDIAN OR ALASKA NATIVE   1   0    0
+  ASIAN                             59   0    2
+  BLACK OR AFRICAN AMERICAN        150   0   22
+  WHITE                             28 687   28
+  <NA>                               7  85    2
+> table(pat$race, pat$ethnicity, useNA="ifany")
+                                  
+                                   [Not Evaluated] [Unknown] HISPANIC OR LATINO
+  [Not Evaluated]                                3         0                  0
+  AMERICAN INDIAN OR ALASKA NATIVE               0         0                  0
+  ASIAN                                          0         0                  1
+  BLACK OR AFRICAN AMERICAN                      0         7                  1
+  WHITE                                          0         1                 30
+  <NA>                                           0         0                  4
+                                  
+                                   NOT HISPANIC OR LATINO <NA>
+  [Not Evaluated]                                       0    0
+  AMERICAN INDIAN OR ALASKA NATIVE                      1    0
+  ASIAN                                                58    2
+  BLACK OR AFRICAN AMERICAN                           157    7
+  WHITE                                               648   64
+  <NA>                                                  2   88
+> table(raceD$Caucasian, pat$ethnicity, useNA="ifany")
+      
+       [Not Evaluated] [Unknown] HISPANIC OR LATINO NOT HISPANIC OR LATINO <NA>
+  NO                 0         4                 17                    212   12
+  YES                2         1                 17                    607  147
+  <NA>               1         3                  2                     47    2
+> 
+> # ------------------------------------------------------------
+> # select thsoe female patients who are non-hispanic white
+> # ------------------------------------------------------------
+> 
+> pat1 = pat[which(pat$gender=="FEMALE" & raceD$Caucasian=="YES"), ]
+> dim(pat1)
+[1] 765 109
+> 
+> table(pat1$tumor_status)
+
+ [Unknown] TUMOR FREE WITH TUMOR 
+         8        589         59 
+> table(pat1$tumor_tissue_site)
+
+Breast 
+   765 
+> table(pat1$tissue_source_site)
+
+ 3C  4H  A1  A2  A7  A8  AC  AN  AO  AQ  AR  B6  BH  C8  D8  E2  E9  EW  GI  GM 
+  1   1  10  71  27  79  22  35  32   6  64  36 130   1  74  61  59  16   1  17 
+ HN  LD  LL  LQ  MS  OL  PE  W8  WT  XX  Z7 
+  2   3   5   1   1   2   2   1   1   2   2 
+> table(pat1$clinical_stage)
+
+[Not Applicable] 
+             765 
+> table(pat1$ajcc_pathologic_tumor_stage)
+
+   Stage I   Stage IA   Stage IB   Stage II  Stage IIA  Stage IIB  Stage III 
+        74         59          5          2        242        172          2 
+Stage IIIA Stage IIIB Stage IIIC   Stage IV    Stage X 
+       112         21         47         14         10 
+> 
+> ff1 = "_data2/patient_brca_female_Caucasian.txt"
+> write.table(pat1, file=ff1, sep="\t", quote=FALSE, row.names = FALSE,
++   col.names = TRUE)
+> 
+> nms  = c("bcr_patient_barcode", "patient_id", "tissue_source_site")
+> nms  = c(nms, "birth_days_to", "last_contact_days_to", "death_days_to")
+> nms  = c(nms, "vital_status", "ajcc_pathologic_tumor_stage", "tumor_status")
+> nms  = c(nms, "age_at_diagnosis")
+> 
+> pat2 = pat1[,nms]
+> dim(pat2)
+[1] 765  10
+> pat2[1:2,]
+  bcr_patient_barcode patient_id tissue_source_site birth_days_to
+3        TCGA-3C-AAAU       AAAU                 3C        -20211
+7        TCGA-4H-AAAK       AAAK                 4H        -18371
+  last_contact_days_to    death_days_to vital_status
+3                 3767 [Not Applicable]        Alive
+7                  158 [Not Applicable]        Alive
+  ajcc_pathologic_tumor_stage tumor_status age_at_diagnosis
+3                     Stage X   WITH TUMOR               55
+7                  Stage IIIA   TUMOR FREE               50
+> 
+> ff2 = "_data2/patient_brca_female_Caucasian_short_table.txt"
+> write.table(pat2, file=ff2, sep="\t", quote=FALSE, row.names = FALSE,
++   col.names = TRUE)
+> 
+> # ------------------------------------------------------------
+> # obtain the patient barcode for those with methylation data
+> # ------------------------------------------------------------
+> 
+> fls = read.table("file_manifest.txt", sep = "\t", header = TRUE, as.is=TRUE)
+> 
+> table(fls$Platform.Type, useNA="ifany")
+
+       Clinical DNA Methylation        METADATA        RNASeqV2 
+             21             878               4            7290 
+> 
+> flsDM = fls[fls$Platform.Type == "DNA Methylation",]
+> dim(flsDM)
+[1] 878   7
+> flsDM[1:2,]
+    Platform.Type  Center            Platform Level          Sample
+5 DNA Methylation JHU_USC HumanMethylation450     3 TCGA-A7-A0CE-11
+6 DNA Methylation JHU_USC HumanMethylation450     3 TCGA-A7-A0CH-11
+                       Barcode
+5 TCGA-A7-A0CE-11A-21D-A10Q-05
+6 TCGA-A7-A0CH-11A-32D-A10Q-05
+                                                                      File.Name
+5 jhu-usc.edu_BRCA.HumanMethylation450.1.lvl-3.TCGA-A7-A0CE-11A-21D-A10Q-05.txt
+6 jhu-usc.edu_BRCA.HumanMethylation450.1.lvl-3.TCGA-A7-A0CH-11A-32D-A10Q-05.txt
+> 
+> table(flsDM$Center)
+
+JHU_USC 
+    878 
+> table(flsDM$Platform)
+
+HumanMethylation450 
+                878 
+> table(flsDM$Level)
+
+  3 
+878 
+> 
+> mids = strsplit(flsDM$Sample, split="-")
+> table(sapply(mids, length))
+
+  4 
+878 
+> mids = matrix(unlist(mids), byrow=TRUE, ncol=4)
+> mids[1:2,]
+     [,1]   [,2] [,3]   [,4]
+[1,] "TCGA" "A7" "A0CE" "11"
+[2,] "TCGA" "A7" "A0CH" "11"
+> 
+> mids = data.frame(mids, stringsAsFactors=TRUE)
+> names(mids) = c("tcga", "site", "patient", "sample")
+> table(mids$sample)
+
+ 01  06  11 
+776   5  97 
+> 
+> flsDM = flsDM[which(mids$sample=="01"),]
+> 
+> # ------------------------------------------------------------
+> # obtain the patient barcode for those with expression data
+> # ------------------------------------------------------------
+> 
+> flsEX = fls[which(fls$Platform.Type == "RNASeqV2"),]
+> dim(flsEX)
+[1] 7290    7
+> flsEX[1:2,]
+    Platform.Type Center               Platform Level          Sample
+883      RNASeqV2    UNC IlluminaHiSeq_RNASeqV2     3 TCGA-E9-A1RD-11
+884      RNASeqV2    UNC IlluminaHiSeq_RNASeqV2     3 TCGA-E9-A1RD-11
+                         Barcode
+883 TCGA-E9-A1RD-11A-33R-A157-07
+884 TCGA-E9-A1RD-11A-33R-A157-07
+                                                                           File.Name
+883 unc.edu.000d877f-8d03-44bc-8607-27b5ba84b5fe.1165098.junction_quantification.txt
+884          unc.edu.000d877f-8d03-44bc-8607-27b5ba84b5fe.1167702.rsem.genes.results
+> 
+> flsEX = flsEX[grep("rsem.genes.results", flsEX$File.Name),]
+> dim(flsEX)
+[1] 1215    7
+> flsEX[1:2,]
+    Platform.Type Center               Platform Level          Sample
+884      RNASeqV2    UNC IlluminaHiSeq_RNASeqV2     3 TCGA-E9-A1RD-11
+890      RNASeqV2    UNC IlluminaHiSeq_RNASeqV2     3 TCGA-E9-A1RC-01
+                         Barcode
+884 TCGA-E9-A1RD-11A-33R-A157-07
+890 TCGA-E9-A1RC-01A-11R-A157-07
+                                                                  File.Name
+884 unc.edu.000d877f-8d03-44bc-8607-27b5ba84b5fe.1167702.rsem.genes.results
+890 unc.edu.00168e86-d23a-48ae-8c60-36d970051907.1168728.rsem.genes.results
+> 
+> table(flsEX$Center)
+
+ UNC 
+1215 
+> table(flsEX$Platform)
+
+IlluminaHiSeq_RNASeqV2 
+                  1215 
+> table(flsEX$Level)
+
+   3 
+1215 
+> 
+> table(table(flsEX$Barcode))
+
+   1 
+1215 
+> 
+> eids = strsplit(flsEX$Sample, split="-")
+> table(sapply(eids, length))
+
+   4 
+1215 
+> eids = matrix(unlist(eids), byrow=TRUE, ncol=4)
+> eids[1:2,]
+     [,1]   [,2] [,3]   [,4]
+[1,] "TCGA" "E9" "A1RD" "11"
+[2,] "TCGA" "E9" "A1RC" "01"
+> 
+> eids = data.frame(eids, stringsAsFactors=TRUE)
+> names(eids) = c("tcga", "site", "patient", "sample")
+> table(eids$sample)
+
+  01   06   11 
+1095    7  113 
+> 
+> flsEX = flsEX[which(eids$sample=="01"),]
+> 
+> # ------------------------------------------------------------
+> # now we need to make sure the samples are from the same vial
+> # e.g, 01A matched with 01A instead of 01B
+> # ------------------------------------------------------------
+> # for methylation data, the column Barcode is not useable
+> # because it includes the barcode for more than one sample
+> # we will get barcode from file name
+> # ------------------------------------------------------------
+> 
+> barcodeDM = strsplit(flsDM$File.Name, split="-")
+> table(sapply(barcodeDM, length))
+
+  9 
+776 
+> 
+> if(any(sapply(barcodeDM, length)!= 9)){
++   stop("file name is not expected\n")
++ }
+> 
+> barcodeDM = matrix(unlist(barcodeDM), byrow=TRUE, ncol=9)
+> dim(barcodeDM)
+[1] 776   9
+> barcodeDM[1:2,]
+     [,1]  [,2]                                      [,3]     [,4] [,5]   [,6] 
+[1,] "jhu" "usc.edu_BRCA.HumanMethylation450.10.lvl" "3.TCGA" "A2" "A1FV" "01A"
+[2,] "jhu" "usc.edu_BRCA.HumanMethylation450.10.lvl" "3.TCGA" "A2" "A1FW" "01A"
+     [,7]  [,8]   [,9]    
+[1,] "11D" "A13K" "05.txt"
+[2,] "11D" "A13K" "05.txt"
+> 
+> apply(barcodeDM, 2, table)
+[[1]]
+
+jhu 
+776 
+
+[[2]]
+
+usc.edu_BRCA.HumanMethylation450.10.lvl usc.edu_BRCA.HumanMethylation450.11.lvl 
+                                     75                                      40 
+usc.edu_BRCA.HumanMethylation450.12.lvl usc.edu_BRCA.HumanMethylation450.13.lvl 
+                                     24                                      32 
+usc.edu_BRCA.HumanMethylation450.14.lvl usc.edu_BRCA.HumanMethylation450.15.lvl 
+                                     27                                      51 
+usc.edu_BRCA.HumanMethylation450.16.lvl usc.edu_BRCA.HumanMethylation450.17.lvl 
+                                     29                                       8 
+usc.edu_BRCA.HumanMethylation450.18.lvl usc.edu_BRCA.HumanMethylation450.19.lvl 
+                                     13                                      18 
+usc.edu_BRCA.HumanMethylation450.20.lvl usc.edu_BRCA.HumanMethylation450.21.lvl 
+                                     10                                      10 
+usc.edu_BRCA.HumanMethylation450.22.lvl usc.edu_BRCA.HumanMethylation450.23.lvl 
+                                     13                                      18 
+usc.edu_BRCA.HumanMethylation450.24.lvl usc.edu_BRCA.HumanMethylation450.25.lvl 
+                                     10                                      15 
+usc.edu_BRCA.HumanMethylation450.26.lvl usc.edu_BRCA.HumanMethylation450.27.lvl 
+                                     15                                      22 
+usc.edu_BRCA.HumanMethylation450.28.lvl usc.edu_BRCA.HumanMethylation450.29.lvl 
+                                     21                                      14 
+ usc.edu_BRCA.HumanMethylation450.3.lvl usc.edu_BRCA.HumanMethylation450.30.lvl 
+                                     46                                      12 
+usc.edu_BRCA.HumanMethylation450.31.lvl usc.edu_BRCA.HumanMethylation450.32.lvl 
+                                     11                                      16 
+usc.edu_BRCA.HumanMethylation450.33.lvl usc.edu_BRCA.HumanMethylation450.34.lvl 
+                                     10                                      10 
+usc.edu_BRCA.HumanMethylation450.35.lvl  usc.edu_BRCA.HumanMethylation450.4.lvl 
+                                     35                                      47 
+ usc.edu_BRCA.HumanMethylation450.5.lvl  usc.edu_BRCA.HumanMethylation450.6.lvl 
+                                     39                                      27 
+ usc.edu_BRCA.HumanMethylation450.8.lvl  usc.edu_BRCA.HumanMethylation450.9.lvl 
+                                     42                                      16 
+
+[[3]]
+
+3.TCGA 
+   776 
+
+[[4]]
+
+3C 4H 5L 5T A1 A2 A7 A8 AC AN AO AQ AR B6 BH C8 D8 E2 E9 EW GI GM HN JL LD LL 
+ 4  1  2  1 13 66 39  4 49 10 30  8 65 38 96 27 69 56 60 43  2 21  1  2  5 19 
+LQ MS OL PL S3 UL UU V7 W8 WT XX Z7 
+ 1  1 19  4 10  1  1  1  1  2  2  2 
+
+[[5]]
+
+A03L A03M A03N A03U A04H A04L A04R A075 A08O A0A6 A0AD A0AU A0AW A0AZ A0B2 A0B3 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A0B5 A0B6 A0B8 A0B9 A0BA A0BC A0BF A0BJ A0BM A0BS A0BT A0BZ A0C0 A0C3 A0CK A0CO 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A0CR A0CT A0D9 A0DD A0DG A0DH A0DI A0DK A0DP A0DQ A0DS A0DV A0E0 A0E1 A0E2 A0EN 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A0EP A0EU A0GY A0GZ A0H0 A0H3 A0H6 A0H7 A0H9 A0HA A0HB A0HF A0HI A0HK A0HN A0HP 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A0HX A0HY A0I1 A0IK A0JA A0JB A0JC A0JD A0JE A0JF A0JG A0JI A0JJ A0JL A0JM A0RE 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A0RG A0RI A0RL A0RM A0RN A0RO A0RP A0RS A0RT A0RU A0RV A0RX A0SB A0SE A0SF A0SG 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A0SH A0SI A0SJ A0SK A0SM A0SN A0SO A0SP A0SQ A0ST A0SU A0SV A0SW A0SX A0SY A0T0 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A0T1 A0T2 A0T4 A0T5 A0T6 A0T7 A0TP A0TQ A0TR A0TT A0TU A0TV A0TW A0TX A0TZ A0U0 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A0U2 A0U3 A0U4 A0W3 A0W4 A0W5 A0WA A0WT A0WV A0WW A0WX A0WY A0WZ A0X1 A0X4 A0X5 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A0X7 A0XL A0XN A0XO A0XP A0XR A0XS A0XT A0XU A0XV A0XW A0Y5 A0YC A0YD A0YE A0YF 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A0YG A0YH A0YI A0YJ A0YK A0YL A0YM A0YT A105 A106 A107 A108 A109 A10B A10C A10E 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A10F A124 A125 A126 A128 A129 A12B A12C A12E A12G A13D A13E A13F A13G A13H A14N 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    2    1    1 
+A14U A15I A15J A15K A1AI A1AJ A1AK A1AL A1AM A1AN A1AO A1AP A1AQ A1AR A1AS A1AT 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A1AU A1AV A1AW A1AX A1AY A1AZ A1B0 A1B1 A1B4 A1B5 A1B6 A1BC A1BD A1EN A1EO A1ES 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A1ET A1EU A1EV A1EW A1EX A1EY A1F0 A1F2 A1F5 A1F6 A1F8 A1FB A1FC A1FD A1FE A1FG 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A1FH A1FJ A1FL A1FM A1FN A1FR A1FU A1FV A1FW A1FX A1FZ A1G0 A1G1 A1G4 A1G6 A1H2 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A1H3 A1HE A1HF A1HG A1HI A1HJ A1HK A1HL A1HM A1HN A1HO A1IE A1IF A1IG A1IH A1II 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A1IJ A1IK A1IL A1IN A1IO A1IU A1IW A1IX A1IY A1IZ A1J1 A1J2 A1J3 A1J5 A1J6 A1J8 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A1J9 A1JA A1JB A1JC A1JD A1JE A1JF A1JG A1JH A1JI A1JJ A1JK A1JL A1JM A1JN A1JP 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A1JS A1JT A1JU A1KC A1KF A1KI A1KN A1KO A1KP A1KQ A1KR A1KS A1KT A1L6 A1L7 A1L8 
+   1    1    1    2    1    1    1    1    1    1    1    1    1    1    1    1 
+A1L9 A1LA A1LB A1LE A1LG A1LH A1LI A1LK A1LL A1LS A1N3 A1N4 A1N5 A1N6 A1N8 A1N9 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A1NA A1NC A1ND A1NE A1NF A1NG A1NH A1NI A1OV A1OW A1OX A1OY A1OZ A1P0 A1P1 A1P3 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A1P4 A1P5 A1P6 A1P7 A1P8 A1PA A1PB A1PC A1PD A1PE A1PF A1PG A1PH A1QZ A1R0 A1R2 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A1R3 A1R4 A1R5 A1R6 A1R7 A1RA A1RB A1RC A1RD A1RE A1RF A1RG A1RH A1RI A1X5 A1X6 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A1X7 A1X8 A1X9 A1XA A1XB A1XC A1XD A1XF A1XG A1XJ A1XK A1XL A1XM A1XO A1XQ A1XR 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A1XS A1XT A1XU A1XV A1XW A1XY A1XZ A1Y0 A1Y1 A1Y2 A1Y3 A201 A202 A203 A204 A208 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A209 A226 A227 A228 A229 A22A A22B A22D A22E A22G A22H A23C A23E A23G A23H A243 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A244 A245 A247 A248 A249 A24A A24H A24K A24L A24M A24N A24O A24P A24Q A24R A24S 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A24T A24U A24V A24W A24X A24Z A250 A251 A252 A254 A255 A256 A259 A25A A25B A25C 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A25D A25E A25F A26E A26F A26G A26H A26I A26J A26V A26W A26X A26Y A26Z A273 A274 
+   1    1    1    3    2    1    1    1    3    1    1    1    1    1    1    1 
+A275 A278 A27A A27B A27E A27F A27G A27H A27I A27K A27L A27M A27N A27P A27R A27T 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A27V A27W A28O A28Q A295 A2B8 A2BK A2BM A2C8 A2C9 A2D9 A2DA A2DB A2DC A2DD A2DF 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A2DH A2DI A2DK A2DL A2DM A2DN A2DO A2FB A2FE A2FF A2FG A2FK A2FM A2FO A2FR A2FS 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A2FV A2FW A2IU A2JS A2JT A2KD A2L8 A2LE A2LH A2LJ A2LK A2LL A2LM A2LN A2LO A2LQ 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A2LR A2NL A2P5 A2P6 A2QH A2QI A2QJ A3BB A3DX A3E8 A3EH A3HN A3HO A3IY A3IZ A3J0 
+   1    1    1    1    2    1    1    1    1    1    1    1    1    1    1    1 
+A3J1 A3KC A3KD A3M7 A3M8 A3NW A3NY A3OD A3Q9 A3QA A3QP A3QQ A3RF A3TM A3TN A3U0 
+   1    1    1    1    1    1    1    2    1    1    1    1    1    1    1    1 
+A3W5 A3W6 A3W7 A3X8 A3XG A3XL A3XN A3XS A3XT A3XU A3XV A3XW A3XX A3XY A3XZ A3Y0 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A3YI A3YJ A3YW A3YX A3Z5 A3Z6 A3ZX A400 A401 A402 A408 A409 A40B A40C A423 A424 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A425 A426 A42T A42U A42V A440 A441 A442 A4E0 A4E4 A4RW A4RX A4RY A4S0 A4S1 A4S2 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A4S3 A4SA A4SB A4SC A4SD A4SE A4SF A4Z1 A4ZE A50Y A51U A54N A54O A54X A54Y A56Z 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A570 A572 A573 A574 A576 A5EH A5PV A5PX A5QN A5QP A5QQ A5RU A5RV A5RW A5RX A5RY 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A5RZ A5S0 A5UO A5UP A5XS A5XU A5YL A5YM A5YN A5YO A5YP A5ZV A5ZW A5ZX A62V A62X 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A62Y A66H A66I A66J A66K A66L A66N A66O A66P A66U A6FP A6FQ A6FR A6HE A6IV A6IW 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A6IX A6NO A6R8 A6R9 A6S9 A6SA A6SB A6SC A6SD A6VO A6VQ A6VR A6VV A6VW A6VX A6VY 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A6ZF A6ZG A6ZH A73U A73W A73X A73Y A73Z A740 A74U A7HQ A7SZ A7T0 A7U7 A7VB A7VC 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A7W5 A7W6 A86G A899 A89A A8F5 A8FY A8FZ A8G0 A8HP A8HQ A8HR A8LV A8LX A8LY A8LZ 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+A8OP A8OQ A8OR A8OS A8R5 A8R6 A93S A97C A9FZ A9Q3 A9QA A9QF A9RU AA0Z AA10 AA11 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+AA12 AA14 AA15 AA17 AAAK AAAU AALI AALJ AALK AAT0 AAT1 AAZ6 AB28 AB41 AB44 
+   1    1    1    1    1    1    1    1    1    1    1    1    1    1    1 
+
+[[6]]
+
+01A 01B 
+761  15 
+
+[[7]]
+
+02D 04D 06D 11D 12D 13D 21D 22D 31D 32D 41D 42D 51D 52D 61D 81D 
+  1   3   2 528  67   7  94  20  38   6   4   2   1   1   1   1 
+
+[[8]]
+
+A10A A10N A10P A12R A138 A13K A145 A14H A14N A161 A16A A16G A17F A17Z A18O A19Z 
+  39   27   93   42   16   73   40   24   32   28   46   29    8   13   17   10 
+A212 A21R A22B A22R A230 A23D A244 A268 A27B A28C A29O A31V A32T A33F A357 A36K 
+  10   12   18    4   10   15   15   22    4   21   14   12   11   16   10   10 
+A41Q 
+  35 
+
+[[9]]
+
+05.txt 
+   776 
+
+> 
+> barcodeDM = cbind(rep("TCGA", nrow(barcodeDM)), barcodeDM[,4:6])
+> barcodeDM = apply(barcodeDM, 1, paste, collapse="-")
+> barcodeDM[1:5]
+[1] "TCGA-A2-A1FV-01A" "TCGA-A2-A1FW-01A" "TCGA-A2-A1FX-01A" "TCGA-A2-A1G0-01A"
+[5] "TCGA-A2-A1G1-01A"
+> 
+> # ------------------------------------------------------------
+> # for gene expression data, we assume the sample are unique
+> # ------------------------------------------------------------
+> 
+> barcodeEX = strsplit(flsEX$Barcode, split="-")
+> table(sapply(barcodeEX, length))
+
+   7 
+1095 
+> 
+> if(any(sapply(barcodeEX, length)!= 7)){
++   stop("barcodeEX is not expected\n")
++ }
+> 
+> barcodeEX = matrix(unlist(barcodeEX), byrow=TRUE, ncol=7)
+> dim(barcodeEX)
+[1] 1095    7
+> barcodeEX[1:2,]
+     [,1]   [,2] [,3]   [,4]  [,5]  [,6]   [,7]
+[1,] "TCGA" "E9" "A1RC" "01A" "11R" "A157" "07"
+[2,] "TCGA" "AC" "A8OP" "01A" "11R" "A36F" "07"
+> barcodeEX = apply(barcodeEX[,1:4], 1, paste, collapse="-")
+> barcodeEX[1:2]
+[1] "TCGA-E9-A1RC-01A" "TCGA-AC-A8OP-01A"
+> 
+> # ------------------------------------------------------------
+> # take intersection of expression and methyaltion data
+> # ------------------------------------------------------------
+> 
+> barcodes = sort(intersect(barcodeEX, barcodeDM))
+> 
+> length(barcodeEX)
+[1] 1095
+> length(barcodeDM)
+[1] 776
+> length(barcodes)
+[1] 766
+> 
+> flsDM = flsDM[match(barcodes, barcodeDM),]
+> flsEX = flsEX[match(barcodes, barcodeEX),]
+> 
+> dim(flsDM)
+[1] 766   7
+> dim(flsEX)
+[1] 766   7
+> 
+> flsDM[1:5,]
+      Platform.Type  Center            Platform Level          Sample
+648 DNA Methylation JHU_USC HumanMethylation450     3 TCGA-3C-AAAU-01
+649 DNA Methylation JHU_USC HumanMethylation450     3 TCGA-3C-AALI-01
+650 DNA Methylation JHU_USC HumanMethylation450     3 TCGA-3C-AALJ-01
+651 DNA Methylation JHU_USC HumanMethylation450     3 TCGA-3C-AALK-01
+652 DNA Methylation JHU_USC HumanMethylation450     3 TCGA-4H-AAAK-01
+                         Barcode
+648 TCGA-3C-AAAU-01A-11D-A41Q-05
+649 TCGA-3C-AALI-01A-11D-A41Q-05
+650 TCGA-3C-AALJ-01A-31D-A41Q-05
+651 TCGA-3C-AALK-01A-11D-A41Q-05
+652 TCGA-4H-AAAK-01A-12D-A41Q-05
+                                                                         File.Name
+648 jhu-usc.edu_BRCA.HumanMethylation450.35.lvl-3.TCGA-3C-AAAU-01A-11D-A41Q-05.txt
+649 jhu-usc.edu_BRCA.HumanMethylation450.35.lvl-3.TCGA-3C-AALI-01A-11D-A41Q-05.txt
+650 jhu-usc.edu_BRCA.HumanMethylation450.35.lvl-3.TCGA-3C-AALJ-01A-31D-A41Q-05.txt
+651 jhu-usc.edu_BRCA.HumanMethylation450.35.lvl-3.TCGA-3C-AALK-01A-11D-A41Q-05.txt
+652 jhu-usc.edu_BRCA.HumanMethylation450.35.lvl-3.TCGA-4H-AAAK-01A-12D-A41Q-05.txt
+> flsEX[1:5,]
+     Platform.Type Center               Platform Level          Sample
+4238      RNASeqV2    UNC IlluminaHiSeq_RNASeqV2     3 TCGA-3C-AAAU-01
+7220      RNASeqV2    UNC IlluminaHiSeq_RNASeqV2     3 TCGA-3C-AALI-01
+6764      RNASeqV2    UNC IlluminaHiSeq_RNASeqV2     3 TCGA-3C-AALJ-01
+1640      RNASeqV2    UNC IlluminaHiSeq_RNASeqV2     3 TCGA-3C-AALK-01
+2246      RNASeqV2    UNC IlluminaHiSeq_RNASeqV2     3 TCGA-4H-AAAK-01
+                          Barcode
+4238 TCGA-3C-AAAU-01A-11R-A41B-07
+7220 TCGA-3C-AALI-01A-11R-A41B-07
+6764 TCGA-3C-AALJ-01A-31R-A41B-07
+1640 TCGA-3C-AALK-01A-11R-A41B-07
+2246 TCGA-4H-AAAK-01A-12R-A41B-07
+                                                                   File.Name
+4238 unc.edu.6ef883fc-81f3-4089-95e0-86904ffc0d38.2612141.rsem.genes.results
+7220 unc.edu.dd8d3665-ec9d-45be-b7b9-a85dac3585e2.2611591.rsem.genes.results
+6764 unc.edu.c924c2a8-ab41-4499-bb30-79705cc17d45.2622934.rsem.genes.results
+1640 unc.edu.1a19e068-d213-41ef-aebb-104017a883cc.2625310.rsem.genes.results
+2246 unc.edu.2ea9e472-a408-4ae0-975d-50a566f22b2a.2625025.rsem.genes.results
+> 
+> if(any(flsDM$Sample != flsEX$Sample)){
++   stop("sample name mismatch\n")
++ }
+> 
+> # ------------------------------------------------------------
+> # intersect with the samples with demographic/clinical data
+> # ------------------------------------------------------------
+> 
+> patientsEM = substring(barcodes,1,12)
+> patientsEM[1:2]
+[1] "TCGA-3C-AAAU" "TCGA-3C-AALI"
+> length(patientsEM)
+[1] 766
+> 
+> patients2use = sort(intersect(patientsEM, pat2$bcr_patient_barcode))
+> length(patients2use)
+[1] 508
+> 
+> flsDM2use = flsDM[match(patients2use, patientsEM),]
+> flsEX2use = flsEX[match(patients2use, patientsEM),]
+> 
+> dim(flsDM2use)
+[1] 508   7
+> flsDM2use[1:2,]
+      Platform.Type  Center            Platform Level          Sample
+648 DNA Methylation JHU_USC HumanMethylation450     3 TCGA-3C-AAAU-01
+652 DNA Methylation JHU_USC HumanMethylation450     3 TCGA-4H-AAAK-01
+                         Barcode
+648 TCGA-3C-AAAU-01A-11D-A41Q-05
+652 TCGA-4H-AAAK-01A-12D-A41Q-05
+                                                                         File.Name
+648 jhu-usc.edu_BRCA.HumanMethylation450.35.lvl-3.TCGA-3C-AAAU-01A-11D-A41Q-05.txt
+652 jhu-usc.edu_BRCA.HumanMethylation450.35.lvl-3.TCGA-4H-AAAK-01A-12D-A41Q-05.txt
+> 
+> dim(flsEX2use)
+[1] 508   7
+> flsEX2use[1:2,]
+     Platform.Type Center               Platform Level          Sample
+4238      RNASeqV2    UNC IlluminaHiSeq_RNASeqV2     3 TCGA-3C-AAAU-01
+2246      RNASeqV2    UNC IlluminaHiSeq_RNASeqV2     3 TCGA-4H-AAAK-01
+                          Barcode
+4238 TCGA-3C-AAAU-01A-11R-A41B-07
+2246 TCGA-4H-AAAK-01A-12R-A41B-07
+                                                                   File.Name
+4238 unc.edu.6ef883fc-81f3-4089-95e0-86904ffc0d38.2612141.rsem.genes.results
+2246 unc.edu.2ea9e472-a408-4ae0-975d-50a566f22b2a.2625025.rsem.genes.results
+> 
+> pat3 = pat2[match(patients2use, pat2$bcr_patient_barcode),]
+> dim(pat3)
+[1] 508  10
+> pat3[1:2,]
+  bcr_patient_barcode patient_id tissue_source_site birth_days_to
+3        TCGA-3C-AAAU       AAAU                 3C        -20211
+7        TCGA-4H-AAAK       AAAK                 4H        -18371
+  last_contact_days_to    death_days_to vital_status
+3                 3767 [Not Applicable]        Alive
+7                  158 [Not Applicable]        Alive
+  ajcc_pathologic_tumor_stage tumor_status age_at_diagnosis
+3                     Stage X   WITH TUMOR               55
+7                  Stage IIIA   TUMOR FREE               50
+> 
+> table(patients2use == pat3$bcr_patient_barcode)
+
+TRUE 
+ 508 
+> table(patients2use == substr(flsDM2use$Sample, 1, 12))
+
+TRUE 
+ 508 
+> table(patients2use == substr(flsEX2use$Sample, 1, 12))
+
+TRUE 
+ 508 
+> 
+> pat3$methylation_barcode = flsDM2use$Barcode
+> pat3$methylation_file    = flsDM2use$File.Name
+> 
+> pat3$expression_barcode  = flsEX2use$Barcode
+> pat3$expression_file     = flsEX2use$File.Name
+> 
+> dim(pat3)
+[1] 508  14
+> pat3[1:2,]
+  bcr_patient_barcode patient_id tissue_source_site birth_days_to
+3        TCGA-3C-AAAU       AAAU                 3C        -20211
+7        TCGA-4H-AAAK       AAAK                 4H        -18371
+  last_contact_days_to    death_days_to vital_status
+3                 3767 [Not Applicable]        Alive
+7                  158 [Not Applicable]        Alive
+  ajcc_pathologic_tumor_stage tumor_status age_at_diagnosis
+3                     Stage X   WITH TUMOR               55
+7                  Stage IIIA   TUMOR FREE               50
+           methylation_barcode
+3 TCGA-3C-AAAU-01A-11D-A41Q-05
+7 TCGA-4H-AAAK-01A-12D-A41Q-05
+                                                                methylation_file
+3 jhu-usc.edu_BRCA.HumanMethylation450.35.lvl-3.TCGA-3C-AAAU-01A-11D-A41Q-05.txt
+7 jhu-usc.edu_BRCA.HumanMethylation450.35.lvl-3.TCGA-4H-AAAK-01A-12D-A41Q-05.txt
+            expression_barcode
+3 TCGA-3C-AAAU-01A-11R-A41B-07
+7 TCGA-4H-AAAK-01A-12R-A41B-07
+                                                          expression_file
+3 unc.edu.6ef883fc-81f3-4089-95e0-86904ffc0d38.2612141.rsem.genes.results
+7 unc.edu.2ea9e472-a408-4ae0-975d-50a566f22b2a.2625025.rsem.genes.results
+> 
+> ff3 = "_data2/patient_brca_female_Caucasian_EM_info.txt"
+> 
+> write.table(pat3, file=ff3, sep="\t", quote=FALSE, row.names = FALSE,
++ col.names = TRUE)
+> 
+> q(save = "no")
+> proc.time()
+   user  system elapsed 
+  0.912   0.053   0.978 

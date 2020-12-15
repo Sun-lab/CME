@@ -1,0 +1,147 @@
+
+R version 3.1.0 (2014-04-10) -- "Spring Dance"
+Copyright (C) 2014 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin13.1.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> # ------------------------------------------------------------
+> # read in gene expression and copy number data
+> # ------------------------------------------------------------
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/BRCA/_data2")
+> 
+> eDat = read.table("expression_log_TReC.txt", sep = "\t",
++                   header = TRUE, as.is=TRUE)
+> dim(eDat)
+[1] 15816   406
+> eDat[1:2,1:5]
+       id        A0SE        A0SF        A0SG        A0SH
+1 ?|10357 -0.86700645 -0.89707264 -1.21189353 -1.14340258
+2 ?|10431 -0.01774985  0.03819077 -0.01972301 -0.05192673
+> 
+> cDat = read.table("cn_values.txt", sep = "\t", header = TRUE, as.is=TRUE)
+> 
+> dim(cDat)
+[1] 19535   406
+> cDat[1:2,1:5]
+              id    A0SE    A0SF    A0SG    A0SH
+1   PRDM16|63976 -0.0313 -0.0562 -0.0051 -0.3264
+2 ARHGEF16|27237 -0.0313 -0.0562 -0.0051 -0.3264
+> 
+> geneIds = intersect(eDat$id, cDat$id)
+> length(geneIds)
+[1] 15284
+> 
+> cDat = cDat[match(geneIds, cDat$id),]
+> eDat = eDat[match(geneIds, eDat$id),]
+> 
+> dim(eDat)
+[1] 15284   406
+> eDat[1:2,1:5]
+       id        A0SE        A0SF        A0SG        A0SH
+1 ?|10357 -0.86700645 -0.89707264 -1.21189353 -1.14340258
+2 ?|10431 -0.01774985  0.03819077 -0.01972301 -0.05192673
+> 
+> dim(cDat)
+[1] 15284   406
+> cDat[1:2,1:5]
+           id    A0SE   A0SF    A0SG    A0SH
+18020 ?|10357  0.0183 0.1782  0.1161  0.0125
+9556  ?|10431 -0.0377 0.1860 -0.0105 -0.0054
+> 
+> # ------------------------------------------------------------------------
+> # take residuals
+> # ------------------------------------------------------------------------
+> 
+> ePdat = data.matrix(eDat[,-1])
+> cPdat = data.matrix(cDat[,-1])
+> 
+> dim(ePdat)
+[1] 15284   405
+> ePdat[1:2,1:5]
+         A0SE        A0SF        A0SG        A0SH      A0SI
+1 -0.86700645 -0.89707264 -1.21189353 -1.14340258 -1.250051
+2 -0.01774985  0.03819077 -0.01972301 -0.05192673 -0.111446
+> 
+> dim(cPdat)
+[1] 15284   405
+> cPdat[1:2,1:5]
+         A0SE   A0SF    A0SG    A0SH   A0SI
+18020  0.0183 0.1782  0.1161  0.0125 0.2847
+9556  -0.0377 0.1860 -0.0105 -0.0054 0.0100
+> 
+> eNA = rowSums(is.na(ePdat))
+> cNA = rowSums(is.na(cPdat))
+> 
+> table(eNA)
+eNA
+    0 
+15284 
+> table(cNA)
+cNA
+    0     1     2     3     4     5     6     7     8     9    10    11    12 
+14250   387   173   100    47    27    44    43     2    92    11     2     3 
+   13    14    15    18    20 
+   12    76     8     1     6 
+> 
+> rDat = matrix(NA, nrow=nrow(ePdat), ncol=ncol(ePdat))
+> dim(rDat)
+[1] 15284   405
+> 
+> for(i in 1:nrow(ePdat)){
++   if(i %% 2000 == 0){ cat(i, date(), "\n") }
++   yi = ePdat[i,]
++   xi = cPdat[i,]
++   
++   ri = lm(yi ~ xi)$resid
++   rDat[i,which(!is.na(xi))] = ri
++ }
+2000 Wed Aug 12 01:14:38 2015 
+4000 Wed Aug 12 01:14:40 2015 
+6000 Wed Aug 12 01:14:43 2015 
+8000 Wed Aug 12 01:14:46 2015 
+10000 Wed Aug 12 01:14:49 2015 
+12000 Wed Aug 12 01:14:52 2015 
+14000 Wed Aug 12 01:14:54 2015 
+> 
+> rNA = rowSums(is.na(rDat))
+> table(rNA)
+rNA
+    0     1     2     3     4     5     6     7     8     9    10    11    12 
+14250   387   173   100    47    27    44    43     2    92    11     2     3 
+   13    14    15    18    20 
+   12    76     8     1     6 
+> 
+> rDatDF = data.frame(id=eDat$id, rDat)
+> names(rDatDF) = names(eDat)
+> dim(rDatDF)
+[1] 15284   406
+> rDatDF[1:2,1:5]
+       id      A0SE      A0SF        A0SG        A0SH
+1 ?|10357 0.1823580 0.1561428 -0.16017370 -0.09417780
+2 ?|10431 0.0460712 0.0121959  0.03317719 -0.00107418
+> 
+> 
+> write.table(rDatDF, file = "expression_log_TReC_rm_cn.txt",
++             append = FALSE, quote = FALSE, sep = "\t",
++             row.names = FALSE, col.names = TRUE)
+> 
+> 
+> q(save = "no")
+> proc.time()
+   user  system elapsed 
+ 86.913   1.411  89.211 

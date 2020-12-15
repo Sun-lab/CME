@@ -1,0 +1,188 @@
+
+R version 3.1.0 (2014-04-10) -- "Spring Dance"
+Copyright (C) 2014 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin13.1.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> library(MatrixEQTL)
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/BRCA/_data2")
+> 
+> SNP_file_name        = "cn_values.txt"
+> covariates_file_name = "cov_EM.txt"
+> expression_file_name = "expression_log_TReC.txt"
+> output_file_name     = "expression_vs_cn.txt"
+> 
+> useModel              = modelLINEAR;
+> pvOutputThreshold     = 1e-20;
+> 
+> #errorCovariance = numeric();
+> 
+> snps = SlicedData$new(); 
+> snps$fileDelimiter = '\t'; # the TAB character 
+> snps$fileOmitCharacters = 'NA'; # denote missing values; 
+> snps$fileSkipRows = 1; # one row of column labels 
+> snps$fileSkipColumns = 1; # one column of row labels 
+> snps$fileSliceSize = 2000; # read file in pieces of 2000 rows 
+> snps$LoadFile( SNP_file_name );
+Rows read:  2,000 
+Rows read:  4,000 
+Rows read:  6,000 
+Rows read:  8,000 
+Rows read:  10,000 
+Rows read:  12,000 
+Rows read:  14,000 
+Rows read:  16,000 
+Rows read:  18,000 
+Rows read:  19535  done.
+> 
+> genes = SlicedData$new(); 
+> genes$fileDelimiter = '\t'; # the TAB character 
+> genes$fileOmitCharacters = 'NA'; # denote missing values; 
+> genes$fileSkipRows = 1; # one row of column labels 
+> genes$fileSkipColumns = 1; # one column of row labels 
+> genes$fileSliceSize = 2000; # read file in pieces of 2000 rows 
+> genes$LoadFile( expression_file_name );
+Rows read:  2,000 
+Rows read:  4,000 
+Rows read:  6,000 
+Rows read:  8,000 
+Rows read:  10,000 
+Rows read:  12,000 
+Rows read:  14,000 
+Rows read:  15816  done.
+> 
+> 
+> cvrt = SlicedData$new(); 
+> cvrt$fileDelimiter = '\t'; # the TAB character 
+> cvrt$fileOmitCharacters = 'NA'; # denote missing values; 
+> cvrt$fileSkipRows = 1; # one row of column labels 
+> cvrt$fileSkipColumns = 1; # one column of row labels 
+> cvrt$fileSliceSize = 2000; # read file in pieces of 2000 rows 
+> cvrt$LoadFile( covariates_file_name );
+Rows read:  38  done.
+> 
+> gc()
+           used  (Mb) gc trigger  (Mb) max used  (Mb)
+Ncells   315086  16.9     597831  32.0   597831  32.0
+Vcells 14847658 113.3   19204128 146.6 18067029 137.9
+> 
+> me = Matrix_eQTL_main(
++ snps, 
++ genes, 
++ cvrt, 
++ output_file_name = output_file_name, 
++ pvOutputThreshold = pvOutputThreshold,
++ useModel = modelLINEAR, 
++ errorCovariance = numeric(), 
++ verbose = TRUE, 
++ pvalue.hist = T
++ )
+Processing covariates 
+Task finished in  0.004  seconds
+Processing gene expression data (imputation, residualization, etc.) 
+Task finished in  1.055  seconds
+Creating output file(s) 
+Task finished in  0.012  seconds
+Performing eQTL analysis 
+ 1.25% done, 26,335 eQTLs
+ 2.50% done, 39,367 eQTLs
+ 3.75% done, 57,493 eQTLs
+ 5.00% done, 70,218 eQTLs
+ 6.25% done, 87,417 eQTLs
+ 7.50% done, 114,663 eQTLs
+ 8.75% done, 138,030 eQTLs
+10.00% done, 160,985 eQTLs
+11.25% done, 168,154 eQTLs
+12.50% done, 174,171 eQTLs
+13.75% done, 179,524 eQTLs
+15.00% done, 183,476 eQTLs
+16.25% done, 191,594 eQTLs
+17.50% done, 200,235 eQTLs
+18.75% done, 208,102 eQTLs
+20.00% done, 215,121 eQTLs
+21.25% done, 228,736 eQTLs
+22.50% done, 253,606 eQTLs
+23.75% done, 275,067 eQTLs
+25.00% done, 289,228 eQTLs
+26.25% done, 311,115 eQTLs
+27.50% done, 331,651 eQTLs
+28.75% done, 353,049 eQTLs
+30.00% done, 369,407 eQTLs
+31.25% done, 380,191 eQTLs
+32.50% done, 393,567 eQTLs
+33.75% done, 402,221 eQTLs
+35.00% done, 410,770 eQTLs
+36.25% done, 423,359 eQTLs
+37.50% done, 437,978 eQTLs
+38.75% done, 449,136 eQTLs
+40.00% done, 463,412 eQTLs
+41.25% done, 472,337 eQTLs
+42.50% done, 486,671 eQTLs
+43.75% done, 500,790 eQTLs
+45.00% done, 510,724 eQTLs
+46.25% done, 525,194 eQTLs
+47.50% done, 539,889 eQTLs
+48.75% done, 551,647 eQTLs
+50.00% done, 572,648 eQTLs
+51.25% done, 584,149 eQTLs
+52.50% done, 592,739 eQTLs
+53.75% done, 599,707 eQTLs
+55.00% done, 606,024 eQTLs
+56.25% done, 614,729 eQTLs
+57.50% done, 625,659 eQTLs
+58.75% done, 635,007 eQTLs
+60.00% done, 642,269 eQTLs
+61.25% done, 661,966 eQTLs
+62.50% done, 673,278 eQTLs
+63.75% done, 685,411 eQTLs
+65.00% done, 693,839 eQTLs
+66.25% done, 707,769 eQTLs
+67.50% done, 720,665 eQTLs
+68.75% done, 734,154 eQTLs
+70.00% done, 752,007 eQTLs
+71.25% done, 773,127 eQTLs
+72.50% done, 794,169 eQTLs
+73.75% done, 814,168 eQTLs
+75.00% done, 827,138 eQTLs
+76.25% done, 849,649 eQTLs
+77.50% done, 866,270 eQTLs
+78.75% done, 884,332 eQTLs
+80.00% done, 905,543 eQTLs
+81.25% done, 911,387 eQTLs
+82.50% done, 915,865 eQTLs
+83.75% done, 920,749 eQTLs
+85.00% done, 923,980 eQTLs
+86.25% done, 929,382 eQTLs
+87.50% done, 935,305 eQTLs
+88.75% done, 940,026 eQTLs
+90.00% done, 953,329 eQTLs
+91.25% done, 961,012 eQTLs
+92.50% done, 966,297 eQTLs
+93.75% done, 971,893 eQTLs
+95.00% done, 976,138 eQTLs
+96.25% done, 982,049 eQTLs
+97.50% done, 989,691 eQTLs
+98.75% done, 997,061 eQTLs
+100.00% done, 1,004,190 eQTLs
+Task finished in  155.224  seconds
+ 
+> 
+> q(save = "no")
+> proc.time()
+   user  system elapsed 
+178.428   4.836 184.780 

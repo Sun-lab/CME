@@ -1,0 +1,189 @@
+
+R version 3.1.0 (2014-04-10) -- "Spring Dance"
+Copyright (C) 2014 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin13.1.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> # ------------------------------------------------------------
+> # read in location annotation
+> # ------------------------------------------------------------
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/BRCA/_data2")
+> 
+> # ------------------------------------------------------------------------
+> # read in results summary
+> # ------------------------------------------------------------------------
+> 
+> gene1e60 = read.table("gene1e60_qnorm.txt", header=TRUE, sep="\t", as.is=TRUE)
+> meth1e60 = read.table("meth1e60_qnorm.txt", header=TRUE, sep="\t", as.is=TRUE)
+> 
+> dim(gene1e60)
+[1] 335   3
+> gene1e60[c(1:5,96:100,360:362),]
+             gene freqIn1e60 medianPvalIn1e60
+1      IL2RG|3561       2010         70.91157
+2        ITK|3702       1947         71.29302
+3     SASH3|54440       1887         70.39157
+4        CD3E|916       1817         71.09471
+5     IKZF1|10320       1811         69.92560
+96      MFNG|4242        596         64.98165
+97      GFI1|2672        593         66.61657
+98      GZMM|3004        588         67.05678
+99    SLAMF1|6504        554         67.23783
+100  MAP4K1|11184        545         65.65214
+NA           <NA>         NA               NA
+NA.1         <NA>         NA               NA
+NA.2         <NA>         NA               NA
+> 
+> dim(meth1e60)
+[1] 2966    3
+> meth1e60[c(1:5,nrow(meth1e60)),]
+     methyProbe freqIn1e60 medianPvalIn1e60
+1    cg11893955        210         76.70010
+2    cg23925513        204         76.14827
+3    cg07641284        198         72.68774
+4    cg19759064        194         76.93095
+5    cg09762242        193         72.84765
+2966 cg27660627          1         60.86867
+> 
+> summary(gene1e60$freqIn1e60)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+    1.0    12.0   140.0   409.4   717.5  2010.0 
+> summary(meth1e60$freqIn1e60)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+   1.00    6.00   29.00   46.24   76.00  210.00 
+> 
+> table(gene1e60$freqIn1e60 == sort(gene1e60$freqIn1e60, decreasing=TRUE))
+
+TRUE 
+ 335 
+> table(meth1e60$freqIn1e60 == sort(meth1e60$freqIn1e60, decreasing=TRUE))
+
+TRUE 
+2966 
+> 
+> # ------------------------------------------------------------------------
+> # select genes that appear at least 100 times in the 1e60 list
+> # ------------------------------------------------------------------------
+> 
+> summary(gene1e60$freqIn1e60)
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+    1.0    12.0   140.0   409.4   717.5  2010.0 
+> gene100 = gene1e60[gene1e60$freqIn1e60 >= 100,]
+> dim(gene100)
+[1] 182   3
+> gene100[c(1:5,nrow(gene100)),]
+           gene freqIn1e60 medianPvalIn1e60
+1    IL2RG|3561       2010         70.91157
+2      ITK|3702       1947         71.29302
+3   SASH3|54440       1887         70.39157
+4      CD3E|916       1817         71.09471
+5   IKZF1|10320       1811         69.92560
+182  SEPT1|1731        100         63.16747
+> 
+> meth30 = meth1e60[which(meth1e60$freqIn1e60 >= 30),]
+> dim(meth30)
+[1] 1480    3
+> meth30[c(1:5,nrow(meth30)),]
+     methyProbe freqIn1e60 medianPvalIn1e60
+1    cg11893955        210         76.70010
+2    cg23925513        204         76.14827
+3    cg07641284        198         72.68774
+4    cg19759064        194         76.93095
+5    cg09762242        193         72.84765
+1480 cg26140749         30         63.46150
+> 
+> # ------------------------------------------------------------------------
+> # read in gene expression data
+> # ------------------------------------------------------------------------
+> 
+> eDat = read.table("expression_log_TReC.txt", header=TRUE,
++ sep="\t", as.is=TRUE)
+> dim(eDat)
+[1] 15816   406
+> eDat[1:2,1:5]
+       id        A0SE        A0SF        A0SG        A0SH
+1 ?|10357 -0.86700645 -0.89707264 -1.21189353 -1.14340258
+2 ?|10431 -0.01774985  0.03819077 -0.01972301 -0.05192673
+> 
+> table(gene100$gene %in% eDat$id)
+
+TRUE 
+ 182 
+> 
+> gd = data.matrix(eDat[match(gene100$gene, eDat$id),-1])
+> dim(gd)
+[1] 182 405
+> gd[1:2,1:5]
+           A0SE       A0SF       A0SG       A0SH       A0SI
+6613 -0.5853722 -0.1348613 -0.5260693 -0.7686915 -0.2423913
+6802 -1.3027409 -0.6007715 -1.1248691 -1.7188253 -0.8712230
+> 
+> pdf("../figures2/hot_genes_expression.pdf", width=8, height=4)
+> par(mfrow=c(1,2))
+> for(i in 1:nrow(gd)){
++   hist(gd[i,], xlab="log(TReC)", main="")
++   hist(exp(gd[i,]), xlab="TReC", main="")
++ }
+> dev.off()
+null device 
+          1 
+> 
+> # ------------------------------------------------------------------------
+> # read in DNA methylation data
+> # ------------------------------------------------------------------------
+> 
+> mDat = read.table("methylation_mvalue.txt", header=TRUE,
++ sep="\t", as.is=TRUE)
+> dim(mDat)
+[1] 394309    406
+> mDat[1:2,1:5]
+          id     A0SE     A0SF     A0SG     A0SH
+1 cg13869341 1.992940 2.569750 1.868150 2.305290
+2 cg14008030 0.602427 0.429316 0.250666 0.437007
+> 
+> table(meth30$methyProbe %in% mDat$id)
+
+TRUE 
+1480 
+> 
+> md = data.matrix(mDat[match(meth30$methyProbe, mDat$id),-1])
+> dim(md)
+[1] 1480  405
+> md[1:2,1:5]
+           A0SE      A0SF      A0SG      A0SH     A0SI
+180074  2.91801  0.940386  1.508320  2.688780  1.33503
+318422 -1.04943 -0.585684 -0.665412 -0.945512 -0.57994
+> 
+> beta = exp(md)/(1 + exp(md))
+> 
+> pdf("../figures2/hot_methy.pdf", width=8, height=4)
+> par(mfrow=c(1,2))
+> for(i in 1:nrow(gd)){
++   hist(md[i,], xlab="M-value", main="")
++   hist(beta[i,], xlab="beta-value", main="")
++ }
+> dev.off()
+null device 
+          1 
+> 
+> 
+> 
+> q(save = "no")
+> proc.time()
+   user  system elapsed 
+599.722   6.790 609.252 

@@ -1,0 +1,1982 @@
+
+R version 3.1.0 (2014-04-10) -- "Spring Dance"
+Copyright (C) 2014 The R Foundation for Statistical Computing
+Platform: x86_64-apple-darwin13.1.0 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> 
+> setwd("~/research/TCGA/_Sun_MethyE/BRCA/_data2")
+> 
+> # ------------------------------------------------------------
+> # prepare new covariate file
+> # ------------------------------------------------------------
+> 
+> cDat = read.table(file="cov_EM_with_absolute_purity.txt", sep = "\t",
++                   header = TRUE, as.is=TRUE)
+> 
+> dim(cDat)
+[1]  39 406
+> cDat[c(1:2,(nrow(cDat)-2):nrow(cDat)),1:5]
+         id         A0SE         A0SF        A0SG        A0SH
+1        A2  0.000000000  0.000000000  0.00000000 0.000000000
+2        A7  0.000000000  0.000000000  0.00000000 0.000000000
+37 noHM_PC2 -0.008863467  0.001399374 -0.01085550 0.003464159
+38 noHM_PC3 -0.055722163 -0.100745584 -0.01689775 0.018587660
+39   purity  0.300000000  0.440000000  0.65000000 0.440000000
+> 
+> ff0 = "patient_brca_female_Caucasian_EMC_info_absolute.txt"
+> emInfo = read.table(ff0, sep = "\t", header = TRUE, as.is=TRUE)
+> dim(emInfo)
+[1] 405  24
+> emInfo[1,]
+  bcr_patient_barcode patient_id tissue_source_site birth_days_to
+1        TCGA-A1-A0SE       A0SE                 A1        -20717
+  last_contact_days_to    death_days_to vital_status
+1                 1321 [Not Applicable]        Alive
+  ajcc_pathologic_tumor_stage tumor_status age_at_diagnosis
+1                     Stage I   TUMOR FREE               56
+           methylation_barcode
+1 TCGA-A1-A0SE-01A-11D-A10P-05
+                                                               methylation_file
+1 jhu-usc.edu_BRCA.HumanMethylation450.4.lvl-3.TCGA-A1-A0SE-01A-11D-A10P-05.txt
+            expression_barcode
+1 TCGA-A1-A0SE-01A-11R-A084-07
+                                                          expression_file
+1 unc.edu.a998e0ce-9248-460f-aabc-2dad452a1ff9.1153763.rsem.genes.results
+                    cn_barcode
+1 TCGA-A1-A0SE-01A-11D-A087-01
+                                                              cn_file abs_call
+1 SHAWM_p_TCGAb72_SNP_N_GenomeWideSNP_6_D12_698000.nocnv_hg19.seg.txt   called
+  abs_purity abs_ploidy abs_doublings pam50    noHM_PC1     noHM_PC2
+1        0.3       4.07             1  LumA 0.008748328 -0.008863467
+     noHM_PC3
+1 -0.05572216
+> 
+> table(names(cDat)[-1] == emInfo$patient_id)
+
+TRUE 
+ 405 
+> 
+> mod1 = model.matrix(~emInfo$pam50)
+> dim(mod1)
+[1] 405   5
+> mod1[1:2,1:5]
+  (Intercept) emInfo$pam50Her2 emInfo$pam50LumA emInfo$pam50LumB
+1           1                0                1                0
+2           1                0                1                0
+  emInfo$pam50Normal
+1                  0
+2                  0
+> table(emInfo$pam50)
+
+ Basal   Her2   LumA   LumB Normal 
+    63     21    222     91      8 
+> 
+> pam50 = t(mod1[,-1])
+> nms   = gsub("emInfo$pam50", "", rownames(pam50), fixed=TRUE)
+> pam50 = data.frame(id=nms, pam50)
+> 
+> dim(pam50)
+[1]   4 406
+> pam50[1:2,1:5]
+                   id X1 X2 X3 X4
+emInfo$pam50Her2 Her2  0  0  0  0
+emInfo$pam50LumA LumA  1  1  1  1
+> 
+> names(pam50) = names(cDat)
+> dim(cDat)
+[1]  39 406
+> 
+> cDat = rbind(cDat, pam50)
+> dim(cDat)
+[1]  43 406
+> cDat[c(1:3,(nrow(cDat)-4):nrow(cDat)),1:5]
+                       id A0SE A0SF A0SG A0SH
+1                      A2  0.0 0.00 0.00 0.00
+2                      A7  0.0 0.00 0.00 0.00
+3                      A8  0.0 0.00 0.00 0.00
+39                 purity  0.3 0.44 0.65 0.44
+emInfo$pam50Her2     Her2  0.0 0.00 0.00 0.00
+emInfo$pam50LumA     LumA  1.0 1.00 1.00 1.00
+emInfo$pam50LumB     LumB  0.0 0.00 0.00 0.00
+emInfo$pam50Normal Normal  0.0 0.00 0.00 0.00
+> 
+> write.table(cDat, file = "cov_EM_with_ab_purity_pam50.txt",
++             append = FALSE, quote = FALSE, sep = "\t",
++             row.names = FALSE, col.names = TRUE)
+> 
+> # ------------------------------------------------------------
+> # run matrix eQTL
+> # ------------------------------------------------------------
+> 
+> library(MatrixEQTL)
+> 
+> SNP_file_name        = "methylation_mvalue.txt"
+> covariates_file_name = "cov_EM_with_ab_purity_pam50.txt"
+> expression_file_name = "expression_log_TReC.txt"
+> output_file_name     = "expression_vs_methylation_ab_purity_pam50.txt"
+> 
+> useModel              = modelLINEAR;
+> pvOutputThreshold     = 1e-30;
+> 
+> #errorCovariance = numeric();
+> 
+> snps = SlicedData$new(); 
+> snps$fileDelimiter = '\t'; # the TAB character 
+> snps$fileOmitCharacters = 'NA'; # denote missing values; 
+> snps$fileSkipRows = 1; # one row of column labels 
+> snps$fileSkipColumns = 1; # one column of row labels 
+> snps$fileSliceSize = 2000; # read file in pieces of 2000 rows 
+> snps$LoadFile( SNP_file_name );
+Rows read:  2,000 
+Rows read:  4,000 
+Rows read:  6,000 
+Rows read:  8,000 
+Rows read:  10,000 
+Rows read:  12,000 
+Rows read:  14,000 
+Rows read:  16,000 
+Rows read:  18,000 
+Rows read:  20,000 
+Rows read:  22,000 
+Rows read:  24,000 
+Rows read:  26,000 
+Rows read:  28,000 
+Rows read:  30,000 
+Rows read:  32,000 
+Rows read:  34,000 
+Rows read:  36,000 
+Rows read:  38,000 
+Rows read:  40,000 
+Rows read:  42,000 
+Rows read:  44,000 
+Rows read:  46,000 
+Rows read:  48,000 
+Rows read:  50,000 
+Rows read:  52,000 
+Rows read:  54,000 
+Rows read:  56,000 
+Rows read:  58,000 
+Rows read:  60,000 
+Rows read:  62,000 
+Rows read:  64,000 
+Rows read:  66,000 
+Rows read:  68,000 
+Rows read:  70,000 
+Rows read:  72,000 
+Rows read:  74,000 
+Rows read:  76,000 
+Rows read:  78,000 
+Rows read:  80,000 
+Rows read:  82,000 
+Rows read:  84,000 
+Rows read:  86,000 
+Rows read:  88,000 
+Rows read:  90,000 
+Rows read:  92,000 
+Rows read:  94,000 
+Rows read:  96,000 
+Rows read:  98,000 
+Rows read:  100,000 
+Rows read:  102,000 
+Rows read:  104,000 
+Rows read:  106,000 
+Rows read:  108,000 
+Rows read:  110,000 
+Rows read:  112,000 
+Rows read:  114,000 
+Rows read:  116,000 
+Rows read:  118,000 
+Rows read:  120,000 
+Rows read:  122,000 
+Rows read:  124,000 
+Rows read:  126,000 
+Rows read:  128,000 
+Rows read:  130,000 
+Rows read:  132,000 
+Rows read:  134,000 
+Rows read:  136,000 
+Rows read:  138,000 
+Rows read:  140,000 
+Rows read:  142,000 
+Rows read:  144,000 
+Rows read:  146,000 
+Rows read:  148,000 
+Rows read:  150,000 
+Rows read:  152,000 
+Rows read:  154,000 
+Rows read:  156,000 
+Rows read:  158,000 
+Rows read:  160,000 
+Rows read:  162,000 
+Rows read:  164,000 
+Rows read:  166,000 
+Rows read:  168,000 
+Rows read:  170,000 
+Rows read:  172,000 
+Rows read:  174,000 
+Rows read:  176,000 
+Rows read:  178,000 
+Rows read:  180,000 
+Rows read:  182,000 
+Rows read:  184,000 
+Rows read:  186,000 
+Rows read:  188,000 
+Rows read:  190,000 
+Rows read:  192,000 
+Rows read:  194,000 
+Rows read:  196,000 
+Rows read:  198,000 
+Rows read:  200,000 
+Rows read:  202,000 
+Rows read:  204,000 
+Rows read:  206,000 
+Rows read:  208,000 
+Rows read:  210,000 
+Rows read:  212,000 
+Rows read:  214,000 
+Rows read:  216,000 
+Rows read:  218,000 
+Rows read:  220,000 
+Rows read:  222,000 
+Rows read:  224,000 
+Rows read:  226,000 
+Rows read:  228,000 
+Rows read:  230,000 
+Rows read:  232,000 
+Rows read:  234,000 
+Rows read:  236,000 
+Rows read:  238,000 
+Rows read:  240,000 
+Rows read:  242,000 
+Rows read:  244,000 
+Rows read:  246,000 
+Rows read:  248,000 
+Rows read:  250,000 
+Rows read:  252,000 
+Rows read:  254,000 
+Rows read:  256,000 
+Rows read:  258,000 
+Rows read:  260,000 
+Rows read:  262,000 
+Rows read:  264,000 
+Rows read:  266,000 
+Rows read:  268,000 
+Rows read:  270,000 
+Rows read:  272,000 
+Rows read:  274,000 
+Rows read:  276,000 
+Rows read:  278,000 
+Rows read:  280,000 
+Rows read:  282,000 
+Rows read:  284,000 
+Rows read:  286,000 
+Rows read:  288,000 
+Rows read:  290,000 
+Rows read:  292,000 
+Rows read:  294,000 
+Rows read:  296,000 
+Rows read:  298,000 
+Rows read:  300,000 
+Rows read:  302,000 
+Rows read:  304,000 
+Rows read:  306,000 
+Rows read:  308,000 
+Rows read:  310,000 
+Rows read:  312,000 
+Rows read:  314,000 
+Rows read:  316,000 
+Rows read:  318,000 
+Rows read:  320,000 
+Rows read:  322,000 
+Rows read:  324,000 
+Rows read:  326,000 
+Rows read:  328,000 
+Rows read:  330,000 
+Rows read:  332,000 
+Rows read:  334,000 
+Rows read:  336,000 
+Rows read:  338,000 
+Rows read:  340,000 
+Rows read:  342,000 
+Rows read:  344,000 
+Rows read:  346,000 
+Rows read:  348,000 
+Rows read:  350,000 
+Rows read:  352,000 
+Rows read:  354,000 
+Rows read:  356,000 
+Rows read:  358,000 
+Rows read:  360,000 
+Rows read:  362,000 
+Rows read:  364,000 
+Rows read:  366,000 
+Rows read:  368,000 
+Rows read:  370,000 
+Rows read:  372,000 
+Rows read:  374,000 
+Rows read:  376,000 
+Rows read:  378,000 
+Rows read:  380,000 
+Rows read:  382,000 
+Rows read:  384,000 
+Rows read:  386,000 
+Rows read:  388,000 
+Rows read:  390,000 
+Rows read:  392,000 
+Rows read:  394,000 
+Rows read:  394309  done.
+> 
+> genes = SlicedData$new(); 
+> genes$fileDelimiter = '\t'; # the TAB character 
+> genes$fileOmitCharacters = 'NA'; # denote missing values; 
+> genes$fileSkipRows = 1; # one row of column labels 
+> genes$fileSkipColumns = 1; # one column of row labels 
+> genes$fileSliceSize = 2000; # read file in pieces of 2000 rows 
+> genes$LoadFile( expression_file_name );
+Rows read:  2,000 
+Rows read:  4,000 
+Rows read:  6,000 
+Rows read:  8,000 
+Rows read:  10,000 
+Rows read:  12,000 
+Rows read:  14,000 
+Rows read:  15816  done.
+> 
+> 
+> cvrt = SlicedData$new(); 
+> cvrt$fileDelimiter = '\t'; # the TAB character 
+> cvrt$fileOmitCharacters = 'NA'; # denote missing values; 
+> cvrt$fileSkipRows = 1; # one row of column labels 
+> cvrt$fileSkipColumns = 1; # one column of row labels 
+> cvrt$fileSliceSize = 2000; # read file in pieces of 2000 rows 
+> cvrt$LoadFile( covariates_file_name );
+Rows read:  43  done.
+> 
+> gc()
+            used   (Mb) gc trigger   (Mb)  max used   (Mb)
+Ncells    731067   39.1    1166886   62.4   1166886   62.4
+Vcells 168080011 1282.4  223777353 1707.3 175241793 1337.0
+> 
+> me = Matrix_eQTL_main(
++ snps, 
++ genes, 
++ cvrt, 
++ output_file_name = output_file_name, 
++ pvOutputThreshold = pvOutputThreshold,
++ useModel = modelLINEAR, 
++ errorCovariance = numeric(), 
++ verbose = TRUE, 
++ pvalue.hist = T
++ )
+Processing covariates 
+Task finished in  0.011  seconds
+Processing gene expression data (imputation, residualization, etc.) 
+Task finished in  2.435  seconds
+Creating output file(s) 
+Task finished in  0.076  seconds
+Performing eQTL analysis 
+ 0.06% done, 274 eQTLs
+ 0.12% done, 955 eQTLs
+ 0.18% done, 1,409 eQTLs
+ 0.25% done, 1,889 eQTLs
+ 0.31% done, 2,176 eQTLs
+ 0.37% done, 2,539 eQTLs
+ 0.44% done, 3,037 eQTLs
+ 0.50% done, 3,207 eQTLs
+ 0.56% done, 3,238 eQTLs
+ 0.63% done, 3,334 eQTLs
+ 0.69% done, 3,381 eQTLs
+ 0.75% done, 3,457 eQTLs
+ 0.82% done, 3,486 eQTLs
+ 0.88% done, 3,534 eQTLs
+ 0.94% done, 3,605 eQTLs
+ 1.01% done, 3,626 eQTLs
+ 1.07% done, 3,815 eQTLs
+ 1.13% done, 4,345 eQTLs
+ 1.19% done, 4,649 eQTLs
+ 1.26% done, 5,002 eQTLs
+ 1.32% done, 5,178 eQTLs
+ 1.38% done, 5,460 eQTLs
+ 1.45% done, 5,845 eQTLs
+ 1.51% done, 5,951 eQTLs
+ 1.57% done, 6,236 eQTLs
+ 1.64% done, 7,027 eQTLs
+ 1.70% done, 7,534 eQTLs
+ 1.76% done, 8,123 eQTLs
+ 1.83% done, 8,384 eQTLs
+ 1.89% done, 8,794 eQTLs
+ 1.95% done, 9,291 eQTLs
+ 2.02% done, 9,517 eQTLs
+ 2.08% done, 9,719 eQTLs
+ 2.14% done, 10,261 eQTLs
+ 2.20% done, 10,589 eQTLs
+ 2.27% done, 11,024 eQTLs
+ 2.33% done, 11,192 eQTLs
+ 2.39% done, 11,475 eQTLs
+ 2.46% done, 11,852 eQTLs
+ 2.52% done, 11,998 eQTLs
+ 2.58% done, 12,187 eQTLs
+ 2.65% done, 12,766 eQTLs
+ 2.71% done, 13,107 eQTLs
+ 2.77% done, 13,536 eQTLs
+ 2.84% done, 13,702 eQTLs
+ 2.90% done, 14,018 eQTLs
+ 2.96% done, 14,445 eQTLs
+ 3.03% done, 14,587 eQTLs
+ 3.09% done, 14,652 eQTLs
+ 3.15% done, 14,832 eQTLs
+ 3.21% done, 14,939 eQTLs
+ 3.28% done, 15,075 eQTLs
+ 3.34% done, 15,133 eQTLs
+ 3.40% done, 15,236 eQTLs
+ 3.47% done, 15,380 eQTLs
+ 3.53% done, 15,426 eQTLs
+ 3.59% done, 15,573 eQTLs
+ 3.66% done, 16,012 eQTLs
+ 3.72% done, 16,277 eQTLs
+ 3.78% done, 16,595 eQTLs
+ 3.85% done, 16,732 eQTLs
+ 3.91% done, 16,959 eQTLs
+ 3.97% done, 17,253 eQTLs
+ 4.04% done, 17,359 eQTLs
+ 4.10% done, 17,426 eQTLs
+ 4.16% done, 17,586 eQTLs
+ 4.22% done, 17,682 eQTLs
+ 4.29% done, 17,790 eQTLs
+ 4.35% done, 17,836 eQTLs
+ 4.41% done, 17,934 eQTLs
+ 4.48% done, 18,056 eQTLs
+ 4.54% done, 18,101 eQTLs
+ 4.60% done, 18,133 eQTLs
+ 4.67% done, 18,256 eQTLs
+ 4.73% done, 18,326 eQTLs
+ 4.79% done, 18,405 eQTLs
+ 4.86% done, 18,444 eQTLs
+ 4.92% done, 18,505 eQTLs
+ 4.98% done, 18,587 eQTLs
+ 5.05% done, 18,611 eQTLs
+ 5.11% done, 18,653 eQTLs
+ 5.17% done, 18,773 eQTLs
+ 5.23% done, 18,848 eQTLs
+ 5.30% done, 18,920 eQTLs
+ 5.36% done, 18,952 eQTLs
+ 5.42% done, 19,030 eQTLs
+ 5.49% done, 19,135 eQTLs
+ 5.55% done, 19,163 eQTLs
+ 5.61% done, 19,262 eQTLs
+ 5.68% done, 19,519 eQTLs
+ 5.74% done, 19,667 eQTLs
+ 5.80% done, 19,854 eQTLs
+ 5.87% done, 19,946 eQTLs
+ 5.93% done, 20,117 eQTLs
+ 5.99% done, 20,343 eQTLs
+ 6.06% done, 20,423 eQTLs
+ 6.12% done, 20,590 eQTLs
+ 6.18% done, 21,035 eQTLs
+ 6.25% done, 21,307 eQTLs
+ 6.31% done, 21,619 eQTLs
+ 6.37% done, 21,735 eQTLs
+ 6.43% done, 22,029 eQTLs
+ 6.50% done, 22,334 eQTLs
+ 6.56% done, 22,466 eQTLs
+ 6.62% done, 22,649 eQTLs
+ 6.69% done, 23,169 eQTLs
+ 6.75% done, 23,492 eQTLs
+ 6.81% done, 23,894 eQTLs
+ 6.88% done, 24,057 eQTLs
+ 6.94% done, 24,359 eQTLs
+ 7.00% done, 24,746 eQTLs
+ 7.07% done, 24,890 eQTLs
+ 7.13% done, 24,921 eQTLs
+ 7.19% done, 25,018 eQTLs
+ 7.26% done, 25,057 eQTLs
+ 7.32% done, 25,123 eQTLs
+ 7.38% done, 25,152 eQTLs
+ 7.44% done, 25,206 eQTLs
+ 7.51% done, 25,292 eQTLs
+ 7.57% done, 25,324 eQTLs
+ 7.63% done, 25,465 eQTLs
+ 7.70% done, 25,758 eQTLs
+ 7.76% done, 25,945 eQTLs
+ 7.82% done, 26,192 eQTLs
+ 7.89% done, 26,307 eQTLs
+ 7.95% done, 26,514 eQTLs
+ 8.01% done, 26,756 eQTLs
+ 8.08% done, 26,843 eQTLs
+ 8.14% done, 26,938 eQTLs
+ 8.20% done, 27,209 eQTLs
+ 8.27% done, 27,386 eQTLs
+ 8.33% done, 27,611 eQTLs
+ 8.39% done, 27,696 eQTLs
+ 8.45% done, 27,845 eQTLs
+ 8.52% done, 28,035 eQTLs
+ 8.58% done, 28,101 eQTLs
+ 8.64% done, 28,183 eQTLs
+ 8.71% done, 28,379 eQTLs
+ 8.77% done, 28,508 eQTLs
+ 8.83% done, 28,700 eQTLs
+ 8.90% done, 28,771 eQTLs
+ 8.96% done, 28,887 eQTLs
+ 9.02% done, 29,037 eQTLs
+ 9.09% done, 29,103 eQTLs
+ 9.15% done, 29,164 eQTLs
+ 9.21% done, 29,305 eQTLs
+ 9.28% done, 29,391 eQTLs
+ 9.34% done, 29,519 eQTLs
+ 9.40% done, 29,563 eQTLs
+ 9.46% done, 29,649 eQTLs
+ 9.53% done, 29,755 eQTLs
+ 9.59% done, 29,800 eQTLs
+ 9.65% done, 29,841 eQTLs
+ 9.72% done, 29,971 eQTLs
+ 9.78% done, 30,045 eQTLs
+ 9.84% done, 30,143 eQTLs
+ 9.91% done, 30,193 eQTLs
+ 9.97% done, 30,257 eQTLs
+10.03% done, 30,339 eQTLs
+10.10% done, 30,387 eQTLs
+10.16% done, 30,510 eQTLs
+10.22% done, 30,842 eQTLs
+10.29% done, 31,037 eQTLs
+10.35% done, 31,261 eQTLs
+10.41% done, 31,356 eQTLs
+10.47% done, 31,543 eQTLs
+10.54% done, 31,792 eQTLs
+10.60% done, 31,871 eQTLs
+10.66% done, 31,906 eQTLs
+10.73% done, 32,021 eQTLs
+10.79% done, 32,096 eQTLs
+10.85% done, 32,192 eQTLs
+10.92% done, 32,226 eQTLs
+10.98% done, 32,286 eQTLs
+11.04% done, 32,358 eQTLs
+11.11% done, 32,399 eQTLs
+11.17% done, 32,490 eQTLs
+11.23% done, 32,728 eQTLs
+11.30% done, 32,875 eQTLs
+11.36% done, 33,049 eQTLs
+11.42% done, 33,121 eQTLs
+11.48% done, 33,261 eQTLs
+11.55% done, 33,417 eQTLs
+11.61% done, 33,483 eQTLs
+11.67% done, 33,591 eQTLs
+11.74% done, 33,937 eQTLs
+11.80% done, 34,139 eQTLs
+11.86% done, 34,372 eQTLs
+11.93% done, 34,483 eQTLs
+11.99% done, 34,662 eQTLs
+12.05% done, 34,911 eQTLs
+12.12% done, 34,989 eQTLs
+12.18% done, 35,119 eQTLs
+12.24% done, 35,375 eQTLs
+12.31% done, 35,562 eQTLs
+12.37% done, 35,759 eQTLs
+12.43% done, 35,871 eQTLs
+12.50% done, 36,018 eQTLs
+12.56% done, 36,222 eQTLs
+12.62% done, 36,293 eQTLs
+12.68% done, 36,537 eQTLs
+12.75% done, 37,199 eQTLs
+12.81% done, 37,583 eQTLs
+12.87% done, 38,058 eQTLs
+12.94% done, 38,273 eQTLs
+13.00% done, 38,653 eQTLs
+13.06% done, 39,140 eQTLs
+13.13% done, 39,298 eQTLs
+13.19% done, 39,340 eQTLs
+13.25% done, 39,427 eQTLs
+13.32% done, 39,493 eQTLs
+13.38% done, 39,565 eQTLs
+13.44% done, 39,597 eQTLs
+13.51% done, 39,658 eQTLs
+13.57% done, 39,727 eQTLs
+13.63% done, 39,755 eQTLs
+13.69% done, 39,862 eQTLs
+13.76% done, 40,212 eQTLs
+13.82% done, 40,435 eQTLs
+13.88% done, 40,685 eQTLs
+13.95% done, 40,793 eQTLs
+14.01% done, 40,974 eQTLs
+14.07% done, 41,213 eQTLs
+14.14% done, 41,319 eQTLs
+14.20% done, 41,375 eQTLs
+14.26% done, 41,483 eQTLs
+14.33% done, 41,549 eQTLs
+14.39% done, 41,641 eQTLs
+14.45% done, 41,680 eQTLs
+14.52% done, 41,763 eQTLs
+14.58% done, 41,850 eQTLs
+14.64% done, 41,878 eQTLs
+14.70% done, 41,890 eQTLs
+14.77% done, 41,916 eQTLs
+14.83% done, 41,928 eQTLs
+14.89% done, 41,960 eQTLs
+14.96% done, 41,971 eQTLs
+15.02% done, 41,998 eQTLs
+15.08% done, 42,025 eQTLs
+15.15% done, 42,033 eQTLs
+15.21% done, 42,199 eQTLs
+15.27% done, 42,590 eQTLs
+15.34% done, 42,849 eQTLs
+15.40% done, 43,150 eQTLs
+15.46% done, 43,270 eQTLs
+15.53% done, 43,517 eQTLs
+15.59% done, 43,816 eQTLs
+15.65% done, 43,922 eQTLs
+15.71% done, 44,027 eQTLs
+15.78% done, 44,298 eQTLs
+15.84% done, 44,458 eQTLs
+15.90% done, 44,685 eQTLs
+15.97% done, 44,778 eQTLs
+16.03% done, 44,935 eQTLs
+16.09% done, 45,150 eQTLs
+16.16% done, 45,210 eQTLs
+16.22% done, 45,383 eQTLs
+16.28% done, 45,799 eQTLs
+16.35% done, 46,078 eQTLs
+16.41% done, 46,382 eQTLs
+16.47% done, 46,554 eQTLs
+16.54% done, 46,781 eQTLs
+16.60% done, 47,053 eQTLs
+16.66% done, 47,155 eQTLs
+16.72% done, 47,333 eQTLs
+16.79% done, 47,831 eQTLs
+16.85% done, 48,114 eQTLs
+16.91% done, 48,464 eQTLs
+16.98% done, 48,625 eQTLs
+17.04% done, 48,865 eQTLs
+17.10% done, 49,180 eQTLs
+17.17% done, 49,314 eQTLs
+17.23% done, 49,391 eQTLs
+17.29% done, 49,602 eQTLs
+17.36% done, 49,721 eQTLs
+17.42% done, 49,867 eQTLs
+17.48% done, 49,936 eQTLs
+17.55% done, 50,054 eQTLs
+17.61% done, 50,197 eQTLs
+17.67% done, 50,247 eQTLs
+17.73% done, 50,429 eQTLs
+17.80% done, 50,971 eQTLs
+17.86% done, 51,303 eQTLs
+17.92% done, 51,693 eQTLs
+17.99% done, 51,848 eQTLs
+18.05% done, 52,095 eQTLs
+18.11% done, 52,432 eQTLs
+18.18% done, 52,587 eQTLs
+18.24% done, 52,683 eQTLs
+18.30% done, 52,938 eQTLs
+18.37% done, 53,082 eQTLs
+18.43% done, 53,248 eQTLs
+18.49% done, 53,332 eQTLs
+18.56% done, 53,474 eQTLs
+18.62% done, 53,665 eQTLs
+18.68% done, 53,730 eQTLs
+18.75% done, 53,830 eQTLs
+18.81% done, 54,166 eQTLs
+18.87% done, 54,374 eQTLs
+18.93% done, 54,600 eQTLs
+19.00% done, 54,704 eQTLs
+19.06% done, 54,877 eQTLs
+19.12% done, 55,120 eQTLs
+19.19% done, 55,196 eQTLs
+19.25% done, 55,268 eQTLs
+19.31% done, 55,457 eQTLs
+19.38% done, 55,573 eQTLs
+19.44% done, 55,718 eQTLs
+19.50% done, 55,779 eQTLs
+19.57% done, 55,886 eQTLs
+19.63% done, 56,021 eQTLs
+19.69% done, 56,072 eQTLs
+19.76% done, 56,133 eQTLs
+19.82% done, 56,286 eQTLs
+19.88% done, 56,375 eQTLs
+19.94% done, 56,496 eQTLs
+20.01% done, 56,548 eQTLs
+20.07% done, 56,632 eQTLs
+20.13% done, 56,743 eQTLs
+20.20% done, 56,784 eQTLs
+20.26% done, 56,805 eQTLs
+20.32% done, 56,870 eQTLs
+20.39% done, 56,901 eQTLs
+20.45% done, 56,938 eQTLs
+20.51% done, 56,958 eQTLs
+20.58% done, 56,997 eQTLs
+20.64% done, 57,043 eQTLs
+20.70% done, 57,065 eQTLs
+20.77% done, 57,073 eQTLs
+20.83% done, 57,081 eQTLs
+20.89% done, 57,094 eQTLs
+20.95% done, 57,110 eQTLs
+21.02% done, 57,114 eQTLs
+21.08% done, 57,128 eQTLs
+21.14% done, 57,139 eQTLs
+21.21% done, 57,143 eQTLs
+21.27% done, 57,247 eQTLs
+21.33% done, 57,538 eQTLs
+21.40% done, 57,718 eQTLs
+21.46% done, 57,942 eQTLs
+21.52% done, 58,045 eQTLs
+21.59% done, 58,183 eQTLs
+21.65% done, 58,373 eQTLs
+21.71% done, 58,438 eQTLs
+21.78% done, 58,490 eQTLs
+21.84% done, 58,644 eQTLs
+21.90% done, 58,737 eQTLs
+21.96% done, 58,849 eQTLs
+22.03% done, 58,897 eQTLs
+22.09% done, 58,996 eQTLs
+22.15% done, 59,102 eQTLs
+22.22% done, 59,139 eQTLs
+22.28% done, 59,185 eQTLs
+22.34% done, 59,313 eQTLs
+22.41% done, 59,397 eQTLs
+22.47% done, 59,497 eQTLs
+22.53% done, 59,546 eQTLs
+22.60% done, 59,662 eQTLs
+22.66% done, 59,761 eQTLs
+22.72% done, 59,790 eQTLs
+22.79% done, 59,845 eQTLs
+22.85% done, 60,009 eQTLs
+22.91% done, 60,090 eQTLs
+22.97% done, 60,183 eQTLs
+23.04% done, 60,224 eQTLs
+23.10% done, 60,320 eQTLs
+23.16% done, 60,452 eQTLs
+23.23% done, 60,496 eQTLs
+23.29% done, 60,568 eQTLs
+23.35% done, 60,807 eQTLs
+23.42% done, 60,928 eQTLs
+23.48% done, 61,077 eQTLs
+23.54% done, 61,146 eQTLs
+23.61% done, 61,268 eQTLs
+23.67% done, 61,458 eQTLs
+23.73% done, 61,508 eQTLs
+23.80% done, 61,574 eQTLs
+23.86% done, 61,756 eQTLs
+23.92% done, 61,869 eQTLs
+23.98% done, 61,997 eQTLs
+24.05% done, 62,054 eQTLs
+24.11% done, 62,157 eQTLs
+24.17% done, 62,296 eQTLs
+24.24% done, 62,340 eQTLs
+24.30% done, 62,400 eQTLs
+24.36% done, 62,537 eQTLs
+24.43% done, 62,629 eQTLs
+24.49% done, 62,724 eQTLs
+24.55% done, 62,773 eQTLs
+24.62% done, 62,843 eQTLs
+24.68% done, 62,937 eQTLs
+24.74% done, 62,972 eQTLs
+24.81% done, 63,035 eQTLs
+24.87% done, 63,218 eQTLs
+24.93% done, 63,329 eQTLs
+25.00% done, 63,452 eQTLs
+25.06% done, 63,514 eQTLs
+25.12% done, 63,613 eQTLs
+25.18% done, 63,742 eQTLs
+25.25% done, 63,782 eQTLs
+25.31% done, 63,836 eQTLs
+25.37% done, 63,970 eQTLs
+25.44% done, 64,055 eQTLs
+25.50% done, 64,162 eQTLs
+25.56% done, 64,213 eQTLs
+25.63% done, 64,293 eQTLs
+25.69% done, 64,388 eQTLs
+25.75% done, 64,426 eQTLs
+25.82% done, 64,464 eQTLs
+25.88% done, 64,563 eQTLs
+25.94% done, 64,627 eQTLs
+26.01% done, 64,697 eQTLs
+26.07% done, 64,729 eQTLs
+26.13% done, 64,778 eQTLs
+26.19% done, 64,838 eQTLs
+26.26% done, 64,861 eQTLs
+26.32% done, 64,985 eQTLs
+26.38% done, 65,261 eQTLs
+26.45% done, 65,416 eQTLs
+26.51% done, 65,582 eQTLs
+26.57% done, 65,729 eQTLs
+26.64% done, 65,867 eQTLs
+26.70% done, 66,064 eQTLs
+26.76% done, 66,112 eQTLs
+26.83% done, 66,222 eQTLs
+26.89% done, 66,533 eQTLs
+26.95% done, 66,731 eQTLs
+27.02% done, 66,957 eQTLs
+27.08% done, 67,056 eQTLs
+27.14% done, 67,221 eQTLs
+27.20% done, 67,418 eQTLs
+27.27% done, 67,484 eQTLs
+27.33% done, 67,552 eQTLs
+27.39% done, 67,761 eQTLs
+27.46% done, 67,896 eQTLs
+27.52% done, 68,038 eQTLs
+27.58% done, 68,111 eQTLs
+27.65% done, 68,215 eQTLs
+27.71% done, 68,350 eQTLs
+27.77% done, 68,404 eQTLs
+27.84% done, 68,550 eQTLs
+27.90% done, 68,934 eQTLs
+27.96% done, 69,185 eQTLs
+28.03% done, 69,483 eQTLs
+28.09% done, 69,595 eQTLs
+28.15% done, 69,793 eQTLs
+28.21% done, 70,047 eQTLs
+28.28% done, 70,139 eQTLs
+28.34% done, 70,332 eQTLs
+28.40% done, 70,870 eQTLs
+28.47% done, 71,210 eQTLs
+28.53% done, 71,628 eQTLs
+28.59% done, 71,824 eQTLs
+28.66% done, 72,123 eQTLs
+28.72% done, 72,519 eQTLs
+28.78% done, 72,672 eQTLs
+28.85% done, 72,701 eQTLs
+28.91% done, 72,797 eQTLs
+28.97% done, 72,852 eQTLs
+29.04% done, 72,914 eQTLs
+29.10% done, 72,958 eQTLs
+29.16% done, 73,007 eQTLs
+29.22% done, 73,075 eQTLs
+29.29% done, 73,100 eQTLs
+29.35% done, 73,145 eQTLs
+29.41% done, 73,265 eQTLs
+29.48% done, 73,333 eQTLs
+29.54% done, 73,411 eQTLs
+29.60% done, 73,464 eQTLs
+29.67% done, 73,530 eQTLs
+29.73% done, 73,611 eQTLs
+29.79% done, 73,648 eQTLs
+29.86% done, 73,685 eQTLs
+29.92% done, 73,760 eQTLs
+29.98% done, 73,796 eQTLs
+30.05% done, 73,841 eQTLs
+30.11% done, 73,875 eQTLs
+30.17% done, 73,934 eQTLs
+30.23% done, 73,997 eQTLs
+30.30% done, 74,011 eQTLs
+30.36% done, 74,096 eQTLs
+30.42% done, 74,354 eQTLs
+30.49% done, 74,512 eQTLs
+30.55% done, 74,685 eQTLs
+30.61% done, 74,769 eQTLs
+30.68% done, 74,905 eQTLs
+30.74% done, 75,082 eQTLs
+30.80% done, 75,152 eQTLs
+30.87% done, 75,224 eQTLs
+30.93% done, 75,442 eQTLs
+30.99% done, 75,618 eQTLs
+31.06% done, 75,781 eQTLs
+31.12% done, 75,854 eQTLs
+31.18% done, 75,986 eQTLs
+31.25% done, 76,153 eQTLs
+31.31% done, 76,205 eQTLs
+31.37% done, 76,318 eQTLs
+31.43% done, 76,588 eQTLs
+31.50% done, 76,740 eQTLs
+31.56% done, 76,990 eQTLs
+31.62% done, 77,074 eQTLs
+31.69% done, 77,250 eQTLs
+31.75% done, 77,470 eQTLs
+31.81% done, 77,547 eQTLs
+31.88% done, 77,571 eQTLs
+31.94% done, 77,694 eQTLs
+32.00% done, 77,751 eQTLs
+32.07% done, 77,814 eQTLs
+32.13% done, 77,845 eQTLs
+32.19% done, 77,915 eQTLs
+32.26% done, 78,009 eQTLs
+32.32% done, 78,073 eQTLs
+32.38% done, 78,143 eQTLs
+32.44% done, 78,324 eQTLs
+32.51% done, 78,441 eQTLs
+32.57% done, 78,554 eQTLs
+32.63% done, 78,624 eQTLs
+32.70% done, 78,715 eQTLs
+32.76% done, 78,829 eQTLs
+32.82% done, 78,864 eQTLs
+32.89% done, 79,188 eQTLs
+32.95% done, 79,947 eQTLs
+33.01% done, 80,405 eQTLs
+33.08% done, 80,969 eQTLs
+33.14% done, 81,203 eQTLs
+33.20% done, 81,659 eQTLs
+33.27% done, 82,225 eQTLs
+33.33% done, 82,409 eQTLs
+33.39% done, 82,466 eQTLs
+33.45% done, 82,635 eQTLs
+33.52% done, 82,737 eQTLs
+33.58% done, 82,862 eQTLs
+33.64% done, 82,911 eQTLs
+33.71% done, 83,017 eQTLs
+33.77% done, 83,144 eQTLs
+33.83% done, 83,189 eQTLs
+33.90% done, 83,340 eQTLs
+33.96% done, 83,732 eQTLs
+34.02% done, 83,982 eQTLs
+34.09% done, 84,304 eQTLs
+34.15% done, 84,422 eQTLs
+34.21% done, 84,650 eQTLs
+34.28% done, 84,941 eQTLs
+34.34% done, 85,040 eQTLs
+34.40% done, 85,107 eQTLs
+34.46% done, 85,274 eQTLs
+34.53% done, 85,371 eQTLs
+34.59% done, 85,484 eQTLs
+34.65% done, 85,538 eQTLs
+34.72% done, 85,624 eQTLs
+34.78% done, 85,743 eQTLs
+34.84% done, 85,778 eQTLs
+34.91% done, 85,851 eQTLs
+34.97% done, 86,074 eQTLs
+35.03% done, 86,228 eQTLs
+35.10% done, 86,392 eQTLs
+35.16% done, 86,455 eQTLs
+35.22% done, 86,580 eQTLs
+35.29% done, 86,740 eQTLs
+35.35% done, 86,807 eQTLs
+35.41% done, 86,812 eQTLs
+35.47% done, 86,858 eQTLs
+35.54% done, 86,885 eQTLs
+35.60% done, 86,904 eQTLs
+35.66% done, 86,916 eQTLs
+35.73% done, 86,935 eQTLs
+35.79% done, 86,966 eQTLs
+35.85% done, 86,977 eQTLs
+35.92% done, 87,062 eQTLs
+35.98% done, 87,245 eQTLs
+36.04% done, 87,354 eQTLs
+36.11% done, 87,468 eQTLs
+36.17% done, 87,552 eQTLs
+36.23% done, 87,656 eQTLs
+36.30% done, 87,786 eQTLs
+36.36% done, 87,835 eQTLs
+36.42% done, 87,916 eQTLs
+36.48% done, 88,150 eQTLs
+36.55% done, 88,286 eQTLs
+36.61% done, 88,482 eQTLs
+36.67% done, 88,556 eQTLs
+36.74% done, 88,692 eQTLs
+36.80% done, 88,868 eQTLs
+36.86% done, 88,930 eQTLs
+36.93% done, 89,024 eQTLs
+36.99% done, 89,290 eQTLs
+37.05% done, 89,446 eQTLs
+37.12% done, 89,660 eQTLs
+37.18% done, 89,745 eQTLs
+37.24% done, 89,891 eQTLs
+37.31% done, 90,078 eQTLs
+37.37% done, 90,144 eQTLs
+37.43% done, 90,177 eQTLs
+37.50% done, 90,258 eQTLs
+37.56% done, 90,303 eQTLs
+37.62% done, 90,373 eQTLs
+37.68% done, 90,401 eQTLs
+37.75% done, 90,451 eQTLs
+37.81% done, 90,519 eQTLs
+37.87% done, 90,543 eQTLs
+37.94% done, 90,589 eQTLs
+38.00% done, 90,726 eQTLs
+38.06% done, 90,804 eQTLs
+38.13% done, 90,884 eQTLs
+38.19% done, 90,925 eQTLs
+38.25% done, 90,997 eQTLs
+38.32% done, 91,091 eQTLs
+38.38% done, 91,117 eQTLs
+38.44% done, 91,185 eQTLs
+38.51% done, 91,389 eQTLs
+38.57% done, 91,527 eQTLs
+38.63% done, 91,666 eQTLs
+38.69% done, 91,740 eQTLs
+38.76% done, 91,835 eQTLs
+38.82% done, 91,960 eQTLs
+38.88% done, 92,005 eQTLs
+38.95% done, 92,034 eQTLs
+39.01% done, 92,133 eQTLs
+39.07% done, 92,186 eQTLs
+39.14% done, 92,238 eQTLs
+39.20% done, 92,267 eQTLs
+39.26% done, 92,318 eQTLs
+39.33% done, 92,460 eQTLs
+39.39% done, 92,481 eQTLs
+39.45% done, 92,517 eQTLs
+39.52% done, 92,624 eQTLs
+39.58% done, 92,688 eQTLs
+39.64% done, 92,756 eQTLs
+39.70% done, 92,788 eQTLs
+39.77% done, 92,843 eQTLs
+39.83% done, 92,920 eQTLs
+39.89% done, 92,942 eQTLs
+39.96% done, 93,025 eQTLs
+40.02% done, 93,269 eQTLs
+40.08% done, 93,417 eQTLs
+40.15% done, 93,607 eQTLs
+40.21% done, 93,689 eQTLs
+40.27% done, 93,815 eQTLs
+40.34% done, 93,979 eQTLs
+40.40% done, 94,036 eQTLs
+40.46% done, 94,221 eQTLs
+40.53% done, 94,689 eQTLs
+40.59% done, 94,991 eQTLs
+40.65% done, 95,372 eQTLs
+40.71% done, 95,561 eQTLs
+40.78% done, 95,785 eQTLs
+40.84% done, 96,083 eQTLs
+40.90% done, 96,198 eQTLs
+40.97% done, 96,335 eQTLs
+41.03% done, 96,664 eQTLs
+41.09% done, 96,885 eQTLs
+41.16% done, 97,141 eQTLs
+41.22% done, 97,252 eQTLs
+41.28% done, 97,442 eQTLs
+41.35% done, 97,669 eQTLs
+41.41% done, 97,761 eQTLs
+41.47% done, 97,816 eQTLs
+41.54% done, 97,968 eQTLs
+41.60% done, 98,060 eQTLs
+41.66% done, 98,153 eQTLs
+41.72% done, 98,198 eQTLs
+41.79% done, 98,305 eQTLs
+41.85% done, 98,429 eQTLs
+41.91% done, 98,483 eQTLs
+41.98% done, 98,593 eQTLs
+42.04% done, 98,886 eQTLs
+42.10% done, 99,066 eQTLs
+42.17% done, 99,288 eQTLs
+42.23% done, 99,392 eQTLs
+42.29% done, 99,540 eQTLs
+42.36% done, 99,737 eQTLs
+42.42% done, 99,826 eQTLs
+42.48% done, 99,904 eQTLs
+42.55% done, 100,087 eQTLs
+42.61% done, 100,205 eQTLs
+42.67% done, 100,352 eQTLs
+42.73% done, 100,422 eQTLs
+42.80% done, 100,524 eQTLs
+42.86% done, 100,668 eQTLs
+42.92% done, 100,715 eQTLs
+42.99% done, 100,805 eQTLs
+43.05% done, 101,045 eQTLs
+43.11% done, 101,187 eQTLs
+43.18% done, 101,341 eQTLs
+43.24% done, 101,452 eQTLs
+43.30% done, 101,574 eQTLs
+43.37% done, 101,742 eQTLs
+43.43% done, 101,791 eQTLs
+43.49% done, 101,833 eQTLs
+43.56% done, 101,962 eQTLs
+43.62% done, 102,027 eQTLs
+43.68% done, 102,106 eQTLs
+43.75% done, 102,150 eQTLs
+43.81% done, 102,297 eQTLs
+43.87% done, 102,395 eQTLs
+43.93% done, 102,433 eQTLs
+44.00% done, 102,434 eQTLs
+44.06% done, 102,444 eQTLs
+44.12% done, 102,457 eQTLs
+44.19% done, 102,457 eQTLs
+44.25% done, 102,464 eQTLs
+44.31% done, 102,871 eQTLs
+44.38% done, 102,873 eQTLs
+44.44% done, 102,876 eQTLs
+44.50% done, 102,973 eQTLs
+44.57% done, 103,347 eQTLs
+44.63% done, 103,545 eQTLs
+44.69% done, 103,767 eQTLs
+44.76% done, 103,902 eQTLs
+44.82% done, 104,068 eQTLs
+44.88% done, 104,289 eQTLs
+44.94% done, 104,378 eQTLs
+45.01% done, 104,455 eQTLs
+45.07% done, 104,708 eQTLs
+45.13% done, 104,842 eQTLs
+45.20% done, 105,049 eQTLs
+45.26% done, 105,131 eQTLs
+45.32% done, 105,244 eQTLs
+45.39% done, 105,377 eQTLs
+45.45% done, 105,470 eQTLs
+45.51% done, 105,675 eQTLs
+45.58% done, 106,002 eQTLs
+45.64% done, 106,205 eQTLs
+45.70% done, 106,454 eQTLs
+45.77% done, 106,554 eQTLs
+45.83% done, 106,773 eQTLs
+45.89% done, 106,976 eQTLs
+45.95% done, 107,095 eQTLs
+46.02% done, 107,124 eQTLs
+46.08% done, 107,167 eQTLs
+46.14% done, 107,184 eQTLs
+46.21% done, 107,199 eQTLs
+46.27% done, 107,204 eQTLs
+46.33% done, 107,235 eQTLs
+46.40% done, 107,271 eQTLs
+46.46% done, 107,279 eQTLs
+46.52% done, 107,323 eQTLs
+46.59% done, 107,378 eQTLs
+46.65% done, 107,449 eQTLs
+46.71% done, 107,486 eQTLs
+46.78% done, 107,542 eQTLs
+46.84% done, 107,616 eQTLs
+46.90% done, 107,677 eQTLs
+46.96% done, 107,735 eQTLs
+47.03% done, 107,849 eQTLs
+47.09% done, 108,056 eQTLs
+47.15% done, 108,199 eQTLs
+47.22% done, 108,308 eQTLs
+47.28% done, 108,456 eQTLs
+47.34% done, 108,576 eQTLs
+47.41% done, 108,704 eQTLs
+47.47% done, 108,821 eQTLs
+47.53% done, 108,846 eQTLs
+47.60% done, 108,984 eQTLs
+47.66% done, 109,064 eQTLs
+47.72% done, 109,148 eQTLs
+47.79% done, 109,185 eQTLs
+47.85% done, 109,283 eQTLs
+47.91% done, 109,355 eQTLs
+47.97% done, 109,545 eQTLs
+48.04% done, 109,622 eQTLs
+48.10% done, 109,942 eQTLs
+48.16% done, 110,165 eQTLs
+48.23% done, 110,358 eQTLs
+48.29% done, 110,457 eQTLs
+48.35% done, 110,635 eQTLs
+48.42% done, 110,830 eQTLs
+48.48% done, 111,182 eQTLs
+48.54% done, 111,272 eQTLs
+48.61% done, 111,489 eQTLs
+48.67% done, 111,629 eQTLs
+48.73% done, 111,774 eQTLs
+48.80% done, 111,864 eQTLs
+48.86% done, 111,987 eQTLs
+48.92% done, 112,137 eQTLs
+48.98% done, 112,190 eQTLs
+49.05% done, 112,300 eQTLs
+49.11% done, 112,608 eQTLs
+49.17% done, 112,803 eQTLs
+49.24% done, 113,043 eQTLs
+49.30% done, 113,150 eQTLs
+49.36% done, 113,320 eQTLs
+49.43% done, 113,544 eQTLs
+49.49% done, 113,618 eQTLs
+49.55% done, 113,803 eQTLs
+49.62% done, 114,253 eQTLs
+49.68% done, 114,529 eQTLs
+49.74% done, 114,867 eQTLs
+49.81% done, 115,014 eQTLs
+49.87% done, 115,280 eQTLs
+49.93% done, 115,623 eQTLs
+50.00% done, 115,744 eQTLs
+50.06% done, 115,812 eQTLs
+50.12% done, 116,022 eQTLs
+50.18% done, 116,147 eQTLs
+50.25% done, 116,287 eQTLs
+50.31% done, 116,370 eQTLs
+50.37% done, 116,496 eQTLs
+50.44% done, 116,649 eQTLs
+50.50% done, 116,702 eQTLs
+50.56% done, 116,796 eQTLs
+50.63% done, 117,035 eQTLs
+50.69% done, 117,181 eQTLs
+50.75% done, 117,328 eQTLs
+50.82% done, 117,437 eQTLs
+50.88% done, 117,555 eQTLs
+50.94% done, 117,715 eQTLs
+51.01% done, 117,761 eQTLs
+51.07% done, 117,833 eQTLs
+51.13% done, 117,977 eQTLs
+51.19% done, 118,082 eQTLs
+51.26% done, 118,202 eQTLs
+51.32% done, 118,251 eQTLs
+51.38% done, 118,334 eQTLs
+51.45% done, 118,432 eQTLs
+51.51% done, 118,474 eQTLs
+51.57% done, 118,549 eQTLs
+51.64% done, 118,736 eQTLs
+51.70% done, 118,842 eQTLs
+51.76% done, 118,983 eQTLs
+51.83% done, 119,031 eQTLs
+51.89% done, 119,142 eQTLs
+51.95% done, 119,279 eQTLs
+52.02% done, 119,320 eQTLs
+52.08% done, 119,419 eQTLs
+52.14% done, 119,716 eQTLs
+52.20% done, 119,908 eQTLs
+52.27% done, 120,124 eQTLs
+52.33% done, 120,235 eQTLs
+52.39% done, 120,389 eQTLs
+52.46% done, 120,586 eQTLs
+52.52% done, 120,659 eQTLs
+52.58% done, 120,748 eQTLs
+52.65% done, 121,015 eQTLs
+52.71% done, 121,161 eQTLs
+52.77% done, 121,319 eQTLs
+52.84% done, 121,403 eQTLs
+52.90% done, 121,550 eQTLs
+52.96% done, 121,754 eQTLs
+53.03% done, 121,806 eQTLs
+53.09% done, 121,907 eQTLs
+53.15% done, 122,239 eQTLs
+53.21% done, 122,427 eQTLs
+53.28% done, 122,628 eQTLs
+53.34% done, 122,719 eQTLs
+53.40% done, 122,874 eQTLs
+53.47% done, 123,075 eQTLs
+53.53% done, 123,148 eQTLs
+53.59% done, 123,212 eQTLs
+53.66% done, 123,379 eQTLs
+53.72% done, 123,477 eQTLs
+53.78% done, 123,600 eQTLs
+53.85% done, 123,655 eQTLs
+53.91% done, 123,748 eQTLs
+53.97% done, 123,876 eQTLs
+54.04% done, 123,912 eQTLs
+54.10% done, 124,026 eQTLs
+54.16% done, 124,303 eQTLs
+54.22% done, 124,503 eQTLs
+54.29% done, 124,716 eQTLs
+54.35% done, 124,821 eQTLs
+54.41% done, 124,979 eQTLs
+54.48% done, 125,182 eQTLs
+54.54% done, 125,240 eQTLs
+54.60% done, 125,280 eQTLs
+54.67% done, 125,427 eQTLs
+54.73% done, 125,514 eQTLs
+54.79% done, 125,655 eQTLs
+54.86% done, 125,708 eQTLs
+54.92% done, 125,773 eQTLs
+54.98% done, 125,857 eQTLs
+55.05% done, 125,893 eQTLs
+55.11% done, 126,037 eQTLs
+55.17% done, 126,427 eQTLs
+55.23% done, 126,668 eQTLs
+55.30% done, 127,023 eQTLs
+55.36% done, 127,143 eQTLs
+55.42% done, 127,343 eQTLs
+55.49% done, 127,590 eQTLs
+55.55% done, 127,688 eQTLs
+55.61% done, 127,780 eQTLs
+55.68% done, 127,993 eQTLs
+55.74% done, 128,131 eQTLs
+55.80% done, 128,295 eQTLs
+55.87% done, 128,369 eQTLs
+55.93% done, 128,510 eQTLs
+55.99% done, 128,681 eQTLs
+56.06% done, 128,746 eQTLs
+56.12% done, 128,808 eQTLs
+56.18% done, 128,966 eQTLs
+56.25% done, 129,069 eQTLs
+56.31% done, 129,190 eQTLs
+56.37% done, 129,256 eQTLs
+56.43% done, 129,339 eQTLs
+56.50% done, 129,452 eQTLs
+56.56% done, 129,504 eQTLs
+56.62% done, 129,577 eQTLs
+56.69% done, 129,731 eQTLs
+56.75% done, 129,834 eQTLs
+56.81% done, 129,968 eQTLs
+56.88% done, 130,041 eQTLs
+56.94% done, 130,139 eQTLs
+57.00% done, 130,257 eQTLs
+57.07% done, 130,305 eQTLs
+57.13% done, 130,403 eQTLs
+57.19% done, 130,639 eQTLs
+57.26% done, 130,813 eQTLs
+57.32% done, 130,995 eQTLs
+57.38% done, 131,077 eQTLs
+57.44% done, 131,198 eQTLs
+57.51% done, 131,349 eQTLs
+57.57% done, 131,426 eQTLs
+57.63% done, 131,797 eQTLs
+57.70% done, 132,790 eQTLs
+57.76% done, 133,450 eQTLs
+57.82% done, 134,215 eQTLs
+57.89% done, 134,572 eQTLs
+57.95% done, 135,092 eQTLs
+58.01% done, 135,769 eQTLs
+58.08% done, 136,029 eQTLs
+58.14% done, 136,289 eQTLs
+58.20% done, 136,955 eQTLs
+58.27% done, 137,407 eQTLs
+58.33% done, 137,950 eQTLs
+58.39% done, 138,168 eQTLs
+58.45% done, 138,557 eQTLs
+58.52% done, 139,033 eQTLs
+58.58% done, 139,233 eQTLs
+58.64% done, 139,548 eQTLs
+58.71% done, 140,486 eQTLs
+58.77% done, 141,097 eQTLs
+58.83% done, 141,799 eQTLs
+58.90% done, 142,094 eQTLs
+58.96% done, 142,596 eQTLs
+59.02% done, 143,228 eQTLs
+59.09% done, 143,478 eQTLs
+59.15% done, 143,581 eQTLs
+59.21% done, 143,879 eQTLs
+59.28% done, 144,067 eQTLs
+59.34% done, 144,277 eQTLs
+59.40% done, 144,396 eQTLs
+59.46% done, 144,570 eQTLs
+59.53% done, 144,773 eQTLs
+59.59% done, 144,850 eQTLs
+59.65% done, 144,895 eQTLs
+59.72% done, 144,980 eQTLs
+59.78% done, 145,009 eQTLs
+59.84% done, 145,093 eQTLs
+59.91% done, 145,154 eQTLs
+59.97% done, 145,219 eQTLs
+60.03% done, 145,270 eQTLs
+60.10% done, 145,297 eQTLs
+60.16% done, 145,360 eQTLs
+60.22% done, 145,556 eQTLs
+60.29% done, 145,664 eQTLs
+60.35% done, 145,811 eQTLs
+60.41% done, 145,859 eQTLs
+60.47% done, 145,956 eQTLs
+60.54% done, 146,100 eQTLs
+60.60% done, 146,148 eQTLs
+60.66% done, 146,285 eQTLs
+60.73% done, 146,655 eQTLs
+60.79% done, 146,874 eQTLs
+60.85% done, 147,143 eQTLs
+60.92% done, 147,258 eQTLs
+60.98% done, 147,454 eQTLs
+61.04% done, 147,709 eQTLs
+61.11% done, 147,788 eQTLs
+61.17% done, 147,852 eQTLs
+61.23% done, 148,024 eQTLs
+61.30% done, 148,140 eQTLs
+61.36% done, 148,266 eQTLs
+61.42% done, 148,329 eQTLs
+61.48% done, 148,420 eQTLs
+61.55% done, 148,540 eQTLs
+61.61% done, 148,580 eQTLs
+61.67% done, 148,861 eQTLs
+61.74% done, 149,671 eQTLs
+61.80% done, 150,177 eQTLs
+61.86% done, 150,787 eQTLs
+61.93% done, 151,055 eQTLs
+61.99% done, 151,501 eQTLs
+62.05% done, 152,089 eQTLs
+62.12% done, 152,306 eQTLs
+62.18% done, 152,361 eQTLs
+62.24% done, 152,479 eQTLs
+62.31% done, 152,547 eQTLs
+62.37% done, 152,645 eQTLs
+62.43% done, 152,680 eQTLs
+62.50% done, 152,764 eQTLs
+62.56% done, 152,866 eQTLs
+62.62% done, 152,897 eQTLs
+62.68% done, 152,995 eQTLs
+62.75% done, 153,215 eQTLs
+62.81% done, 153,363 eQTLs
+62.87% done, 153,567 eQTLs
+62.94% done, 153,636 eQTLs
+63.00% done, 153,777 eQTLs
+63.06% done, 153,962 eQTLs
+63.13% done, 154,021 eQTLs
+63.19% done, 154,245 eQTLs
+63.25% done, 154,852 eQTLs
+63.32% done, 155,221 eQTLs
+63.38% done, 155,769 eQTLs
+63.44% done, 155,988 eQTLs
+63.51% done, 156,329 eQTLs
+63.57% done, 156,787 eQTLs
+63.63% done, 156,942 eQTLs
+63.69% done, 157,130 eQTLs
+63.76% done, 157,657 eQTLs
+63.82% done, 157,970 eQTLs
+63.88% done, 158,362 eQTLs
+63.95% done, 158,540 eQTLs
+64.01% done, 158,829 eQTLs
+64.07% done, 159,204 eQTLs
+64.14% done, 159,326 eQTLs
+64.20% done, 159,357 eQTLs
+64.26% done, 159,428 eQTLs
+64.33% done, 159,474 eQTLs
+64.39% done, 159,524 eQTLs
+64.45% done, 159,552 eQTLs
+64.52% done, 159,592 eQTLs
+64.58% done, 159,643 eQTLs
+64.64% done, 159,667 eQTLs
+64.70% done, 159,798 eQTLs
+64.77% done, 160,085 eQTLs
+64.83% done, 160,272 eQTLs
+64.89% done, 160,469 eQTLs
+64.96% done, 160,594 eQTLs
+65.02% done, 160,736 eQTLs
+65.08% done, 160,916 eQTLs
+65.15% done, 160,978 eQTLs
+65.21% done, 161,255 eQTLs
+65.27% done, 161,984 eQTLs
+65.34% done, 162,474 eQTLs
+65.40% done, 163,068 eQTLs
+65.46% done, 163,328 eQTLs
+65.53% done, 163,707 eQTLs
+65.59% done, 164,183 eQTLs
+65.65% done, 164,396 eQTLs
+65.71% done, 164,700 eQTLs
+65.78% done, 165,565 eQTLs
+65.84% done, 166,110 eQTLs
+65.90% done, 166,762 eQTLs
+65.97% done, 167,019 eQTLs
+66.03% done, 167,474 eQTLs
+66.09% done, 168,041 eQTLs
+66.16% done, 168,237 eQTLs
+66.22% done, 168,309 eQTLs
+66.28% done, 168,524 eQTLs
+66.35% done, 168,647 eQTLs
+66.41% done, 168,802 eQTLs
+66.47% done, 168,870 eQTLs
+66.54% done, 168,984 eQTLs
+66.60% done, 169,135 eQTLs
+66.66% done, 169,198 eQTLs
+66.72% done, 169,273 eQTLs
+66.79% done, 169,481 eQTLs
+66.85% done, 169,601 eQTLs
+66.91% done, 169,740 eQTLs
+66.98% done, 169,811 eQTLs
+67.04% done, 169,910 eQTLs
+67.10% done, 170,054 eQTLs
+67.17% done, 170,110 eQTLs
+67.23% done, 170,204 eQTLs
+67.29% done, 170,399 eQTLs
+67.36% done, 170,517 eQTLs
+67.42% done, 170,658 eQTLs
+67.48% done, 170,729 eQTLs
+67.55% done, 170,839 eQTLs
+67.61% done, 170,992 eQTLs
+67.67% done, 171,050 eQTLs
+67.73% done, 171,102 eQTLs
+67.80% done, 171,209 eQTLs
+67.86% done, 171,263 eQTLs
+67.92% done, 171,353 eQTLs
+67.99% done, 171,380 eQTLs
+68.05% done, 171,457 eQTLs
+68.11% done, 171,545 eQTLs
+68.18% done, 171,584 eQTLs
+68.24% done, 171,654 eQTLs
+68.30% done, 171,826 eQTLs
+68.37% done, 171,925 eQTLs
+68.43% done, 172,007 eQTLs
+68.49% done, 172,085 eQTLs
+68.56% done, 172,148 eQTLs
+68.62% done, 172,236 eQTLs
+68.68% done, 172,261 eQTLs
+68.75% done, 172,460 eQTLs
+68.81% done, 173,065 eQTLs
+68.87% done, 173,437 eQTLs
+68.93% done, 173,882 eQTLs
+69.00% done, 174,046 eQTLs
+69.06% done, 174,348 eQTLs
+69.12% done, 174,732 eQTLs
+69.19% done, 174,904 eQTLs
+69.25% done, 174,957 eQTLs
+69.31% done, 175,126 eQTLs
+69.38% done, 175,215 eQTLs
+69.44% done, 175,331 eQTLs
+69.50% done, 175,376 eQTLs
+69.57% done, 175,467 eQTLs
+69.63% done, 175,575 eQTLs
+69.69% done, 175,612 eQTLs
+69.76% done, 175,649 eQTLs
+69.82% done, 175,723 eQTLs
+69.88% done, 175,760 eQTLs
+69.94% done, 175,817 eQTLs
+70.01% done, 175,842 eQTLs
+70.07% done, 175,891 eQTLs
+70.13% done, 175,963 eQTLs
+70.20% done, 175,980 eQTLs
+70.26% done, 176,077 eQTLs
+70.32% done, 176,349 eQTLs
+70.39% done, 176,491 eQTLs
+70.45% done, 176,679 eQTLs
+70.51% done, 176,757 eQTLs
+70.58% done, 176,917 eQTLs
+70.64% done, 177,123 eQTLs
+70.70% done, 177,176 eQTLs
+70.77% done, 177,215 eQTLs
+70.83% done, 177,339 eQTLs
+70.89% done, 177,416 eQTLs
+70.95% done, 177,512 eQTLs
+71.02% done, 177,548 eQTLs
+71.08% done, 177,618 eQTLs
+71.14% done, 177,715 eQTLs
+71.21% done, 177,743 eQTLs
+71.27% done, 177,811 eQTLs
+71.33% done, 177,991 eQTLs
+71.40% done, 178,102 eQTLs
+71.46% done, 178,247 eQTLs
+71.52% done, 178,308 eQTLs
+71.59% done, 178,418 eQTLs
+71.65% done, 178,553 eQTLs
+71.71% done, 178,602 eQTLs
+71.78% done, 178,698 eQTLs
+71.84% done, 178,941 eQTLs
+71.90% done, 179,085 eQTLs
+71.96% done, 179,269 eQTLs
+72.03% done, 179,366 eQTLs
+72.09% done, 179,497 eQTLs
+72.15% done, 179,683 eQTLs
+72.22% done, 179,741 eQTLs
+72.28% done, 179,962 eQTLs
+72.34% done, 180,609 eQTLs
+72.41% done, 180,996 eQTLs
+72.47% done, 181,474 eQTLs
+72.53% done, 181,664 eQTLs
+72.60% done, 181,970 eQTLs
+72.66% done, 182,396 eQTLs
+72.72% done, 182,582 eQTLs
+72.79% done, 182,650 eQTLs
+72.85% done, 182,826 eQTLs
+72.91% done, 182,940 eQTLs
+72.97% done, 183,091 eQTLs
+73.04% done, 183,147 eQTLs
+73.10% done, 183,251 eQTLs
+73.16% done, 183,396 eQTLs
+73.23% done, 183,437 eQTLs
+73.29% done, 183,554 eQTLs
+73.35% done, 183,856 eQTLs
+73.42% done, 184,024 eQTLs
+73.48% done, 184,221 eQTLs
+73.54% done, 184,332 eQTLs
+73.61% done, 184,499 eQTLs
+73.67% done, 184,728 eQTLs
+73.73% done, 184,807 eQTLs
+73.80% done, 184,898 eQTLs
+73.86% done, 185,138 eQTLs
+73.92% done, 185,272 eQTLs
+73.98% done, 185,449 eQTLs
+74.05% done, 185,528 eQTLs
+74.11% done, 185,661 eQTLs
+74.17% done, 185,831 eQTLs
+74.24% done, 185,891 eQTLs
+74.30% done, 185,946 eQTLs
+74.36% done, 186,071 eQTLs
+74.43% done, 186,141 eQTLs
+74.49% done, 186,223 eQTLs
+74.55% done, 186,260 eQTLs
+74.62% done, 186,344 eQTLs
+74.68% done, 186,451 eQTLs
+74.74% done, 186,484 eQTLs
+74.81% done, 186,556 eQTLs
+74.87% done, 186,765 eQTLs
+74.93% done, 186,872 eQTLs
+75.00% done, 187,006 eQTLs
+75.06% done, 187,066 eQTLs
+75.12% done, 187,180 eQTLs
+75.18% done, 187,329 eQTLs
+75.25% done, 187,369 eQTLs
+75.31% done, 187,546 eQTLs
+75.37% done, 188,045 eQTLs
+75.44% done, 188,346 eQTLs
+75.50% done, 188,710 eQTLs
+75.56% done, 188,865 eQTLs
+75.63% done, 189,124 eQTLs
+75.69% done, 189,470 eQTLs
+75.75% done, 189,586 eQTLs
+75.82% done, 189,742 eQTLs
+75.88% done, 190,164 eQTLs
+75.94% done, 190,469 eQTLs
+76.01% done, 190,794 eQTLs
+76.07% done, 190,930 eQTLs
+76.13% done, 191,163 eQTLs
+76.19% done, 191,447 eQTLs
+76.26% done, 191,561 eQTLs
+76.32% done, 191,635 eQTLs
+76.38% done, 191,921 eQTLs
+76.45% done, 192,071 eQTLs
+76.51% done, 192,243 eQTLs
+76.57% done, 192,310 eQTLs
+76.64% done, 192,445 eQTLs
+76.70% done, 192,650 eQTLs
+76.76% done, 192,717 eQTLs
+76.83% done, 193,014 eQTLs
+76.89% done, 193,741 eQTLs
+76.95% done, 194,201 eQTLs
+77.02% done, 194,812 eQTLs
+77.08% done, 195,042 eQTLs
+77.14% done, 195,502 eQTLs
+77.20% done, 196,079 eQTLs
+77.27% done, 196,277 eQTLs
+77.33% done, 196,466 eQTLs
+77.39% done, 196,877 eQTLs
+77.46% done, 197,132 eQTLs
+77.52% done, 197,442 eQTLs
+77.58% done, 197,600 eQTLs
+77.65% done, 197,845 eQTLs
+77.71% done, 198,122 eQTLs
+77.77% done, 198,231 eQTLs
+77.84% done, 198,450 eQTLs
+77.90% done, 199,047 eQTLs
+77.96% done, 199,409 eQTLs
+78.03% done, 199,813 eQTLs
+78.09% done, 199,985 eQTLs
+78.15% done, 200,300 eQTLs
+78.21% done, 200,708 eQTLs
+78.28% done, 200,858 eQTLs
+78.34% done, 201,082 eQTLs
+78.40% done, 201,667 eQTLs
+78.47% done, 202,035 eQTLs
+78.53% done, 202,467 eQTLs
+78.59% done, 202,685 eQTLs
+78.66% done, 203,004 eQTLs
+78.72% done, 203,438 eQTLs
+78.78% done, 203,587 eQTLs
+78.85% done, 203,710 eQTLs
+78.91% done, 204,016 eQTLs
+78.97% done, 204,207 eQTLs
+79.04% done, 204,422 eQTLs
+79.10% done, 204,531 eQTLs
+79.16% done, 204,700 eQTLs
+79.22% done, 204,913 eQTLs
+79.29% done, 204,987 eQTLs
+79.35% done, 205,231 eQTLs
+79.41% done, 205,916 eQTLs
+79.48% done, 206,331 eQTLs
+79.54% done, 206,849 eQTLs
+79.60% done, 207,080 eQTLs
+79.67% done, 207,426 eQTLs
+79.73% done, 207,866 eQTLs
+79.79% done, 208,053 eQTLs
+79.86% done, 208,198 eQTLs
+79.92% done, 208,651 eQTLs
+79.98% done, 208,898 eQTLs
+80.05% done, 209,217 eQTLs
+80.11% done, 209,351 eQTLs
+80.17% done, 209,598 eQTLs
+80.23% done, 209,913 eQTLs
+80.30% done, 210,023 eQTLs
+80.36% done, 210,246 eQTLs
+80.42% done, 210,972 eQTLs
+80.49% done, 211,415 eQTLs
+80.55% done, 211,933 eQTLs
+80.61% done, 212,142 eQTLs
+80.68% done, 212,502 eQTLs
+80.74% done, 212,991 eQTLs
+80.80% done, 213,186 eQTLs
+80.87% done, 213,276 eQTLs
+80.93% done, 213,570 eQTLs
+80.99% done, 213,723 eQTLs
+81.06% done, 213,924 eQTLs
+81.12% done, 214,003 eQTLs
+81.18% done, 214,161 eQTLs
+81.25% done, 214,368 eQTLs
+81.31% done, 214,440 eQTLs
+81.37% done, 214,517 eQTLs
+81.43% done, 214,725 eQTLs
+81.50% done, 214,857 eQTLs
+81.56% done, 214,998 eQTLs
+81.62% done, 215,056 eQTLs
+81.69% done, 215,192 eQTLs
+81.75% done, 215,377 eQTLs
+81.81% done, 215,433 eQTLs
+81.88% done, 215,735 eQTLs
+81.94% done, 216,682 eQTLs
+82.00% done, 217,242 eQTLs
+82.07% done, 217,858 eQTLs
+82.13% done, 218,222 eQTLs
+82.19% done, 218,767 eQTLs
+82.26% done, 219,436 eQTLs
+82.32% done, 219,661 eQTLs
+82.38% done, 219,774 eQTLs
+82.44% done, 220,079 eQTLs
+82.51% done, 220,256 eQTLs
+82.57% done, 220,503 eQTLs
+82.63% done, 220,611 eQTLs
+82.70% done, 220,774 eQTLs
+82.76% done, 220,981 eQTLs
+82.82% done, 221,053 eQTLs
+82.89% done, 221,173 eQTLs
+82.95% done, 221,420 eQTLs
+83.01% done, 221,566 eQTLs
+83.08% done, 221,810 eQTLs
+83.14% done, 221,989 eQTLs
+83.20% done, 222,094 eQTLs
+83.27% done, 222,257 eQTLs
+83.33% done, 222,311 eQTLs
+83.39% done, 222,427 eQTLs
+83.45% done, 222,735 eQTLs
+83.52% done, 222,891 eQTLs
+83.58% done, 223,106 eQTLs
+83.64% done, 223,178 eQTLs
+83.71% done, 223,366 eQTLs
+83.77% done, 223,614 eQTLs
+83.83% done, 223,685 eQTLs
+83.90% done, 223,831 eQTLs
+83.96% done, 224,199 eQTLs
+84.02% done, 224,432 eQTLs
+84.09% done, 224,697 eQTLs
+84.15% done, 224,823 eQTLs
+84.21% done, 225,034 eQTLs
+84.28% done, 225,309 eQTLs
+84.34% done, 225,410 eQTLs
+84.40% done, 225,625 eQTLs
+84.46% done, 226,167 eQTLs
+84.53% done, 226,514 eQTLs
+84.59% done, 226,905 eQTLs
+84.65% done, 227,101 eQTLs
+84.72% done, 227,400 eQTLs
+84.78% done, 227,782 eQTLs
+84.84% done, 227,924 eQTLs
+84.91% done, 228,063 eQTLs
+84.97% done, 228,449 eQTLs
+85.03% done, 228,667 eQTLs
+85.10% done, 228,942 eQTLs
+85.16% done, 229,060 eQTLs
+85.22% done, 229,253 eQTLs
+85.29% done, 229,502 eQTLs
+85.35% done, 229,607 eQTLs
+85.41% done, 229,693 eQTLs
+85.47% done, 229,950 eQTLs
+85.54% done, 230,117 eQTLs
+85.60% done, 230,292 eQTLs
+85.66% done, 230,374 eQTLs
+85.73% done, 230,511 eQTLs
+85.79% done, 230,689 eQTLs
+85.85% done, 230,760 eQTLs
+85.92% done, 230,807 eQTLs
+85.98% done, 230,939 eQTLs
+86.04% done, 231,029 eQTLs
+86.11% done, 231,130 eQTLs
+86.17% done, 231,161 eQTLs
+86.23% done, 231,240 eQTLs
+86.30% done, 231,345 eQTLs
+86.36% done, 231,385 eQTLs
+86.42% done, 231,396 eQTLs
+86.48% done, 231,415 eQTLs
+86.55% done, 231,424 eQTLs
+86.61% done, 231,440 eQTLs
+86.67% done, 231,460 eQTLs
+86.74% done, 231,469 eQTLs
+86.80% done, 231,483 eQTLs
+86.86% done, 231,494 eQTLs
+86.93% done, 231,696 eQTLs
+86.99% done, 232,240 eQTLs
+87.05% done, 232,579 eQTLs
+87.12% done, 233,010 eQTLs
+87.18% done, 233,213 eQTLs
+87.24% done, 233,501 eQTLs
+87.31% done, 233,866 eQTLs
+87.37% done, 233,994 eQTLs
+87.43% done, 234,211 eQTLs
+87.50% done, 234,809 eQTLs
+87.56% done, 235,166 eQTLs
+87.62% done, 235,633 eQTLs
+87.68% done, 235,830 eQTLs
+87.75% done, 236,138 eQTLs
+87.81% done, 236,550 eQTLs
+87.87% done, 236,701 eQTLs
+87.94% done, 236,911 eQTLs
+88.00% done, 237,486 eQTLs
+88.06% done, 237,835 eQTLs
+88.13% done, 238,283 eQTLs
+88.19% done, 238,462 eQTLs
+88.25% done, 238,774 eQTLs
+88.32% done, 239,175 eQTLs
+88.38% done, 239,327 eQTLs
+88.44% done, 239,630 eQTLs
+88.51% done, 240,348 eQTLs
+88.57% done, 240,820 eQTLs
+88.63% done, 241,328 eQTLs
+88.69% done, 241,676 eQTLs
+88.76% done, 242,066 eQTLs
+88.82% done, 242,561 eQTLs
+88.88% done, 242,739 eQTLs
+88.95% done, 242,898 eQTLs
+89.01% done, 243,347 eQTLs
+89.07% done, 243,590 eQTLs
+89.14% done, 243,903 eQTLs
+89.20% done, 244,044 eQTLs
+89.26% done, 244,279 eQTLs
+89.33% done, 244,583 eQTLs
+89.39% done, 244,681 eQTLs
+89.45% done, 244,745 eQTLs
+89.52% done, 244,893 eQTLs
+89.58% done, 244,989 eQTLs
+89.64% done, 245,112 eQTLs
+89.70% done, 245,157 eQTLs
+89.77% done, 245,253 eQTLs
+89.83% done, 245,365 eQTLs
+89.89% done, 245,434 eQTLs
+89.96% done, 245,490 eQTLs
+90.02% done, 245,629 eQTLs
+90.08% done, 245,712 eQTLs
+90.15% done, 245,819 eQTLs
+90.21% done, 245,858 eQTLs
+90.27% done, 245,925 eQTLs
+90.34% done, 246,022 eQTLs
+90.40% done, 246,063 eQTLs
+90.46% done, 246,178 eQTLs
+90.53% done, 246,548 eQTLs
+90.59% done, 246,757 eQTLs
+90.65% done, 247,021 eQTLs
+90.71% done, 247,115 eQTLs
+90.78% done, 247,298 eQTLs
+90.84% done, 247,556 eQTLs
+90.90% done, 247,670 eQTLs
+90.97% done, 247,716 eQTLs
+91.03% done, 247,793 eQTLs
+91.09% done, 247,864 eQTLs
+91.16% done, 247,939 eQTLs
+91.22% done, 247,991 eQTLs
+91.28% done, 248,053 eQTLs
+91.35% done, 248,119 eQTLs
+91.41% done, 248,139 eQTLs
+91.47% done, 248,159 eQTLs
+91.54% done, 248,221 eQTLs
+91.60% done, 248,264 eQTLs
+91.66% done, 248,308 eQTLs
+91.72% done, 248,334 eQTLs
+91.79% done, 248,372 eQTLs
+91.85% done, 248,419 eQTLs
+91.91% done, 248,456 eQTLs
+91.98% done, 248,470 eQTLs
+92.04% done, 248,501 eQTLs
+92.10% done, 248,517 eQTLs
+92.17% done, 248,533 eQTLs
+92.23% done, 248,541 eQTLs
+92.29% done, 248,571 eQTLs
+92.36% done, 248,601 eQTLs
+92.42% done, 248,770 eQTLs
+92.48% done, 248,856 eQTLs
+92.55% done, 249,173 eQTLs
+92.61% done, 249,364 eQTLs
+92.67% done, 249,583 eQTLs
+92.73% done, 249,673 eQTLs
+92.80% done, 249,824 eQTLs
+92.86% done, 250,030 eQTLs
+92.92% done, 250,105 eQTLs
+92.99% done, 250,215 eQTLs
+93.05% done, 250,494 eQTLs
+93.11% done, 250,682 eQTLs
+93.18% done, 250,897 eQTLs
+93.24% done, 250,997 eQTLs
+93.30% done, 251,168 eQTLs
+93.37% done, 251,385 eQTLs
+93.43% done, 251,464 eQTLs
+93.49% done, 251,509 eQTLs
+93.56% done, 251,608 eQTLs
+93.62% done, 251,671 eQTLs
+93.68% done, 251,751 eQTLs
+93.75% done, 251,793 eQTLs
+93.81% done, 251,855 eQTLs
+93.87% done, 251,933 eQTLs
+93.93% done, 251,957 eQTLs
+94.00% done, 252,053 eQTLs
+94.06% done, 252,314 eQTLs
+94.12% done, 252,443 eQTLs
+94.19% done, 252,645 eQTLs
+94.25% done, 252,718 eQTLs
+94.31% done, 252,865 eQTLs
+94.38% done, 253,073 eQTLs
+94.44% done, 253,137 eQTLs
+94.50% done, 253,203 eQTLs
+94.57% done, 253,475 eQTLs
+94.63% done, 253,609 eQTLs
+94.69% done, 253,762 eQTLs
+94.76% done, 253,830 eQTLs
+94.82% done, 253,974 eQTLs
+94.88% done, 254,192 eQTLs
+94.94% done, 254,253 eQTLs
+95.01% done, 254,379 eQTLs
+95.07% done, 254,710 eQTLs
+95.13% done, 254,913 eQTLs
+95.20% done, 255,148 eQTLs
+95.26% done, 255,249 eQTLs
+95.32% done, 255,428 eQTLs
+95.39% done, 255,661 eQTLs
+95.45% done, 255,753 eQTLs
+95.51% done, 255,929 eQTLs
+95.58% done, 256,433 eQTLs
+95.64% done, 256,748 eQTLs
+95.70% done, 257,116 eQTLs
+95.77% done, 257,254 eQTLs
+95.83% done, 257,517 eQTLs
+95.89% done, 257,886 eQTLs
+95.95% done, 258,017 eQTLs
+96.02% done, 258,280 eQTLs
+96.08% done, 259,029 eQTLs
+96.14% done, 259,510 eQTLs
+96.21% done, 260,060 eQTLs
+96.27% done, 260,281 eQTLs
+96.33% done, 260,676 eQTLs
+96.40% done, 261,187 eQTLs
+96.46% done, 261,420 eQTLs
+96.52% done, 261,609 eQTLs
+96.59% done, 262,201 eQTLs
+96.65% done, 262,539 eQTLs
+96.71% done, 262,937 eQTLs
+96.78% done, 263,122 eQTLs
+96.84% done, 263,436 eQTLs
+96.90% done, 263,875 eQTLs
+96.96% done, 264,007 eQTLs
+97.03% done, 264,047 eQTLs
+97.09% done, 264,134 eQTLs
+97.15% done, 264,181 eQTLs
+97.22% done, 264,242 eQTLs
+97.28% done, 264,266 eQTLs
+97.34% done, 264,314 eQTLs
+97.41% done, 264,373 eQTLs
+97.47% done, 264,394 eQTLs
+97.53% done, 264,413 eQTLs
+97.60% done, 264,469 eQTLs
+97.66% done, 264,505 eQTLs
+97.72% done, 264,546 eQTLs
+97.79% done, 264,563 eQTLs
+97.85% done, 264,591 eQTLs
+97.91% done, 264,628 eQTLs
+97.97% done, 264,668 eQTLs
+98.04% done, 264,668 eQTLs
+98.10% done, 264,668 eQTLs
+98.16% done, 264,668 eQTLs
+98.23% done, 264,668 eQTLs
+98.29% done, 264,671 eQTLs
+98.35% done, 264,671 eQTLs
+98.42% done, 264,671 eQTLs
+98.48% done, 264,745 eQTLs
+98.54% done, 264,745 eQTLs
+98.61% done, 264,745 eQTLs
+98.67% done, 264,745 eQTLs
+98.73% done, 264,746 eQTLs
+98.80% done, 264,746 eQTLs
+98.86% done, 264,746 eQTLs
+98.92% done, 264,746 eQTLs
+98.98% done, 264,838 eQTLs
+99.05% done, 264,838 eQTLs
+99.11% done, 264,839 eQTLs
+99.17% done, 264,839 eQTLs
+99.24% done, 264,839 eQTLs
+99.30% done, 264,839 eQTLs
+99.36% done, 264,839 eQTLs
+99.43% done, 264,844 eQTLs
+99.49% done, 264,916 eQTLs
+99.55% done, 264,916 eQTLs
+99.62% done, 264,916 eQTLs
+99.68% done, 264,916 eQTLs
+99.74% done, 264,916 eQTLs
+99.81% done, 264,916 eQTLs
+99.87% done, 264,916 eQTLs
+99.93% done, 264,916 eQTLs
+100.00% done, 264,930 eQTLs
+Task finished in  5371.157  seconds
+ 
+> 
+> q(save = "no")
+> proc.time()
+    user   system  elapsed 
+5228.543  177.428 5911.810 
